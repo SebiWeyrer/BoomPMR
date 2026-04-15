@@ -1,0 +1,19 @@
+coordinatesSolution.txt
+**/__pycache__/
+**/images/
+
+# ignoring latex temporary files
+*.aux
+*.bbl
+*.blg
+*.log
+*.tcp
+*.fff
+*.lof
+*.ttt
+*.out
+*.synctex.gz
+*.bak
+*.sav
+/LaTeX/main.pdf
+/LaTeX/ACMD/BoomPMR_ACMD2026.pdf

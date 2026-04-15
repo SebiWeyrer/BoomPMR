@@ -1,0 +1,177 @@
+\documentclass[pdflatex,sn-mathphys-num]{sn-jnl}
+\usepackage[tablesfirst, notablist, figlist, disable]{endfloat}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage[caption=false]{subfig}
+\usepackage[title]{appendix}%
+\usepackage{amssymb}
+\usepackage{siunitx}
+\usepackage{mathtools}
+\usepackage{multirow}
+\usepackage{colortbl}
+\usepackage{xcolor}
+\usepackage{booktabs} % for toprule, ...
+\usepackage{placeins}
+\usepackage{subfig}
+\usepackage[english]{babel}
+\usepackage{multicol}
+\usepackage[normalem]{ulem}
+\usepackage{todonotes}
+\usepackage{acronym}
+\acrodef{MOR}{Model Order Reduction}
+\acrodef{PMOR}{Parametric Model Order Reduction}
+\acrodef{DAE}{Differential Algebraic Equation}
+\acrodef{DOF}{Degree of Freedom}
+\acrodef{BC}{Boundary Condition}
+\acrodefplural{DOF}[DOFs]{Degrees of Freedom}
+\acrodef{ANCF}{Absolute Nodal Coordinate Formulation}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% general commands
+\newcommand{\eqdot}{\, .} %use this for a dot at the end of an equation
+\newcommand{\eqcomma}{\, ,} %use this for a comma at the end of an equation
+\newcommand{\LU}[2]{\prescript{#1}{}{#2}\,}
+\newcommand{\LUR}[3]{\prescript{#1}{}{#2}_{#3}\,}
+\newcommand{\LURU}[4]{\prescript{#1}{}{#2}_{#3}^{#4}\,}
+\newcommand{\vp}[2]{\left[ \begin{array}{c} { #1} \vspace{0.1cm}\\ { #2} \end{array} \right]}
+\newcommand{\vr}[3]{\left[ \begin{array}{c} { #1}\vspace{0.1cm} \\ { #2}\vspace{0.1cm} \\ { #3} \end{array} \right]}
+\newcommand{\vtretp}[3]{\left[ \begin{array}{ccc} #1 & #2 & #3 \end{array} \right]}
+\renewcommand{\mp}[4]{\left[ \begin{array}{cc} #1 & #2 \vspace{0.1cm}\\ #3 & #4 \end{array} \right]}
+\newcommand{\av}{\mathbf{a}}
+\newcommand{\bv}{\mathbf{b}}
+\newcommand{\cv}{\mathbf{c}}
+\newcommand{\ev}{\mathbf{e}}
+\newcommand{\fv}{\mathbf{f}}
+\newcommand{\hv}{\mathbf{h}}
+\newcommand{\ov}{\mathbf{o}}
+\newcommand{\qv}{\mathbf{q}}
+\newcommand{\rv}{\mathbf{r}}
+\newcommand{\sv}{\mathbf{s}}
+\newcommand{\tv}{\mathbf{t}}
+\newcommand{\vv}{\mathbf{v}}
+\newcommand{\xv}{\mathbf{x}}
+\newcommand{\yv}{\mathbf{y}}
+\newcommand{\zv}{\mathbf{z}}
+\newcommand{\Rm}{\mathbf{R}}
+\newcommand{\Mm}{\mathbf{M}}
+\newcommand{\Tm}{\mathbf{T}}
+\newcommand{\Kframe}{\ensuremath{\mathrm{K}}}
+\newcommand{\Mframe}{\ensuremath{\mathrm{M}}}
+\newcommand{\tomega}{\mbox{$\pmb{\omega}$}\!\!}
+\newcommand{\tp}{^\mathrm{T}}
+\newcommand{\Null}{\mathbf{0}}
+\newcommand{\One}{\mathbf{1}}
+\newcommand{\Rotation}[2]{\ensuremath{\mathrm{Rot_#1\left(#2\right)}}}
+\newcommand{\angularVelocity}[2]{\ensuremath{\LUR{#1}{\tomega}{~ #2}}}
+\newcommand{\angularVelocitySkew}[2]{\ensuremath{\LUR{#1}{\,\widetilde{\tomega}}{~ #2}}}
+\newcommand{\Gframe}{\ensuremath{\mathrm{0}}}
+\newcommand{\TIIIframe}{\ensuremath{\mathrm{T_3}}}
+\newcommand{\BCOM}{\ensuremath{\mathrm{B_{COM}}}}
+\newcommand{\HCOM}{\ensuremath{\mathrm{H_{COM}}}}
+\newcommand{\HT}[2]{\ensuremath{\mp{#1}{#2}{\Null}{1}}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% abbreviations and helpers
+\newcommand{\EXU}{Exudyn}
+\newcommand{\steps}[1]{\ensuremath{n_\mathrm{#1}}}
+\newcommand{\change}[1]{{#1}}
+\newcommand{\scaleFactor}{1}
+\newcommand{\topicSentence}[1]{{#1} \textcolor{red}{...}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\raggedbottom
+\begin{document}
+\title[BoomPMR]{Model Reduction for a Sliding Beam using a Global Basis: Formulation and Evaluation}
+\author[1,2]{\fnm{Sebastian} \sur{Weyrer}}\email{sebastian.weyrer@uibk.ac.at}
+\author[2]{\fnm{Johannes} \sur{Gerstmayr}}\email{johannes.gerstmayr@uibk.ac.at}
+\author[1]{\fnm{Aki} \sur{Mikkola}}\email{aki.mikkola@lut.fi}
+\author*[1]{\fnm{Grzegorz} \sur{Orzechowski}}\email{grzegorz.orzechowski@lut.fi}
+\affil[1]{\orgdiv{Department of Mechanical Engineering}, \orgname{Lappeenranta-Lahti University of Technology}, \orgaddress{\city{Lappeenranta and Lahti}, \country{Finland}}}
+\affil[2]{\orgdiv{Department of Mechatronics}, \orgname{University of Innsbruck}, \orgaddress{\street{Technikerstraße 13}, \city{Innsbruck}, \postcode{6020}, \state{Tyrol}, \country{Austria}}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Abstract and Keywords
+\abstract{}
+\keywords{}
+\maketitle
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Introduction}
+\label{Introduction}
+\begin{itemize}
+	\item What is a Sliding Beam? Literature on it (Humer, Steinbercher, ...)
+	\item Why is model order reduction difficult for it when using FEM?
+	\item What are possible solutions? $\rightarrow$ PMOR
+	\item Global reduction SOTA as part of PMOR (Brenner, ...).
+	\item Objective: Use global reduction within the MBD framework and do first investigations with it (a step towards FFRF with global reduction) by comparing with ANCF reference solution
+\end{itemize}
+
+%A sliding beam is a one-dimensional flexible structure with the supports sliding along the structure \cite{Steinbrecher2017, Humer2020}. In this work, we refer to the sliding beam problem as a beam in which the position of one \ac{BC} is a time-dependent variable. Sliding beams play a crucial role in engineering systems, think of sliding doors or telescopic crane booms.
+
+%When simulating flexible mechanical systems, \ac{MOR} methods are used to reduce the number of \acp{DOF}, with reference being made to pioneering works \cite{Hurty1965, Craig1968}. However, when the \acp{BC} of a mechanical system change along time, \ac{MOR} is not straightforward anymore: The low-dimensional solution subspace used to transform the physical coordinates into modal coordinates changes over time and the modal coordinates lose their invariant meaning. One solution to this problem is the so-called \ac{PMOR}, a reduction technique for systems whose governing equations depend on a number of parameters, such as time.
+
+%\topicSentence{A comprehensive non-domain specific survey on \ac{PMOR} is provided in \cite{Benner2015}.}
+
+%\topicSentence{The remainder of this article is structured as follows}
+
+\section{Problem Setup}
+\label{Problem Setup}
+\begin{itemize}
+	\item How does the mechanical system look alike?
+	\item Which beam do we use? $\rightarrow$ Euler-Bernoulli
+	\item How do we set up the ANCF reference solution with sliding joint? (Konstantina)
+\end{itemize}
+
+\section{Snapshot-Based Global Model Order Reduction}
+\label{Snapshot-Based Global Model Order Reduction}
+\begin{itemize}
+	\item What are snapshots and how do we place them?
+	\item How do we get a global reduction basis using the snapshots? (SVD, normal eigs)
+\end{itemize}
+
+\section{Multibody Formalism and Constraint Enforcement}
+\label{Multibody Formalism and Constraint Enforcement}
+\begin{itemize}
+	\item How do we incorporate the global reduction basis into Lagrangians of first Type?
+	\item What does this mean for the Jacobian?
+	\item What ways are there to formulate the binding vector (non-interpolated, interpolated)?
+	\item How can we get the energy of the multibody system?
+\end{itemize}
+
+\section{Results}
+\label{Results}
+\begin{itemize}
+	\item Simple case: Energy with different binding vector formulations.
+	\item Test case: Harmonic load to test against ANCF
+	\begin{itemize}
+		\item How important are which GLOBAL modes? $\rightarrow$ barchart
+		\item How many snapshots do we need?
+		\item How many modes per snapshot?
+	\end{itemize}
+\end{itemize}
+
+\section{Discussion}
+\label{Discussion}
+
+\section{Conclusion}
+\label{Conclusion}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\backmatter
+\bmhead{Supplementary Information}
+
+\bmhead{Acknowledgments}
+
+
+\section*{Declarations}
+\begin{itemize}
+	\item \textbf{Competing interests}:
+	\item \textbf{Data availability}: 
+\end{itemize}
+
+\newpage
+\begin{appendices}
+
+\end{appendices}
+\bibliography{literature}
+\end{document}
