@@ -1,5 +1,5 @@
 # BoomPMR
 
-Parametric Model Reduction for Multibody Systems (i.e. Booms) with changing Boundary Conditions (BCs). This is the development Repo.
+Global Parametric Model Order Reduction (PMOR) for MultiBody Systems (MBSs) with changing Boundary Conditions (BCs). At first, we test it for a simple boom.
 
-Most scripts use EXUDYN.
+2026-04-15: Repo is moved from GitLab to GitHub for better collaboration. At the moment it is still private!
