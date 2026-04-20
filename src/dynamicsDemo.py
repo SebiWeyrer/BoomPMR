@@ -14,7 +14,7 @@
 #           graphics functionality for the beam but not constraints etc.. Here,
 #           'utility.py' provides functionality.
 # Author:   Sebastian Weyrer
-# Date:     2026-04-01
+# Date:     2026-04-20
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -59,10 +59,12 @@ xTextOffset = 0.1                                                       # x-offs
 yTextOffset = 0.3                                                       # y-offset of the text (measured to the y-offset of the beam)
 zOffsetForDrawing = 0.01                                                # to see the constraints in renderer, we add a small offset in z-direction
 # define parameters of sliding joint movement
-startTime = 2.5
-stopTime = 7.5
+tExperiment = tEnd  # the experiment duration is equal the simulation duration
 startPosition = length/4
 stopPosition = length*(3/4)
+startTime = tExperiment/4
+stopTime = tExperiment*(3/4)
+A = 50 # max. amplitude of load functions
 # special settings for outputs (sensor outputs) of ANCF simulation
 sensorOutputVariableTypeANCFList = [exu.OutputVariableType.Displacement,
                                     exu.OutputVariableType.Rotation,
@@ -88,6 +90,19 @@ def SlidingJointFunction(t, startPosition=startPosition, stopPosition=stopPositi
         return stopPosition
     else:
         return startPosition + ((stopPosition-startPosition)/(stopTime-startTime)) * (t-startTime)
+# NOTE: this only works for interpolated BC since with no interpolation node-flickering is prevented
+# def SlidingJointFunction(t, startPosition=startPosition, stopPosition=stopPosition,
+#                          startTime=startTime, stopTime=stopTime):
+#     if t < startTime:
+#         return startPosition
+#     if t > stopTime:
+#         return startPosition
+#     else:
+#         duration = (stopTime-startTime) / 2
+#         if t > startTime and t < (startTime+duration):
+#             return startPosition + ((stopPosition-startPosition)/(duration)) * (t-startTime) 
+#         else:
+#             return stopPosition - ((stopPosition-startPosition)/(duration)) * (t-(startTime+duration))
 def LoadTipFunction(mbs, t, load):
     # # excite the 1st eigenmode of sliding joint being at node 22
     # omega = np.sqrt(111.31172747)
@@ -96,7 +111,7 @@ def LoadTipFunction(mbs, t, load):
     # # excite the 3rd eigenmode of sliding joint being at node 22
     # omega = np.sqrt(8417.44841418)
     # return 50 * sin(omega*t)
-    return -100
+    return -A
 # def LoadTipFunction(mbs, t, load):
 #     A = - 50
 #     fStart = 1      # [Hz] starting frequency of the chirp
@@ -107,6 +122,19 @@ def LoadTipFunction(mbs, t, load):
 #         return A * np.sin(2*np.pi*f*t)
 #     else:
 #         return A
+# def LoadTipFunction(mbs, t, load):
+#     fStart = 1
+#     fEnd = 10
+#     TChirp = tEnd/2
+#     if t <= TChirp:
+#         f = fStart + (fEnd - fStart) * t / TChirp
+#         return A * np.sin(2 * np.pi * f * t)
+#     elif t <= 2 * TChirp:
+#         tLocal = t - TChirp
+#         f = fEnd - (fEnd - fStart) * tLocal / TChirp
+#         return A * np.sin(2 * np.pi * f * t)
+#     else:
+#         return A * np.sin(2 * np.pi * fStart * t)
 
 #%% create the beams (non reduced and globally reduced)
 PrintHeadlineToConsole(text='Setting up beams')

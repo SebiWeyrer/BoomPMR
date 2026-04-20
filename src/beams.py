@@ -6,7 +6,7 @@
 #           constraints are supported. This class also natively supports
 #           adding the beams (with graphics) to EXUDYN.
 # Author:   Sebastian Weyrer
-# Date:     2026-03-31
+# Date:     2026-04-20
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -66,6 +66,7 @@ class EulerBernulliBeam:
         #++++++++++++++++++++++++++++++++++++++++++++++++++
         # special settings and variable initializations due to sliding joint and force
         self.interpolateBCForSlidingJoint = params.get('interpolateBCForSlidingJoint')
+        self.fixBCWhenSliderNotMoving = params.get('fixBCWhenSliderNotMoving')
         self.idxNodeA = 0 # initialize with zero
         SlidingJointFunction = params.get('slidingJointFunction') # this function gives us pos of sliding joint over time
         if SlidingJointFunction is None:
@@ -207,10 +208,13 @@ class EulerBernulliBeam:
             positionListToSetConstrained = qxTotal
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
-        # determine whether joint is sliding or not
-        jointMoving = False # per default, the joint is not moving
-        if abs(self.SlidingJointFunction(t+1e-6)-self.SlidingJointFunction(t)) >= 1e-12:
-            jointMoving = True
+        # determine whether joint is sliding or not (this is bypassed per default)
+        if self.fixBCWhenSliderNotMoving:
+            jointMoving = False # per default, the joint is not moving
+            if abs(self.SlidingJointFunction(t+1e-6)-self.SlidingJointFunction(t)) >= 1e-12:
+                jointMoving = True
+        else:
+            jointMoving = True # when not fixed, joint is always moving (per default)
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
         # compute node A and B and suggestion for alpha
@@ -555,7 +559,8 @@ class EulerBernulliBeam:
 class BeamTemplate:
     def __init__(self, physicsLength=1, physicsMassPerLength=5, physicsBendingStiffness=3e4,
                  physicsAxialStiffness=6e6, nElements=10, widthForDrawing=0.2, color=graphics.color.blue,
-                 positionReference=[0, 0, 0], slidingJointFunction=None, loadTipFunction=None, interpolateBCForSlidingJoint=True):
+                 positionReference=[0, 0, 0], slidingJointFunction=None, loadTipFunction=None, interpolateBCForSlidingJoint=True,
+                 fixBCWhenSliderNotMoving=False):
         self.physicsLength = physicsLength
         self.physicsMassPerLength = physicsMassPerLength
         self.physicsBendingStiffness = physicsBendingStiffness
@@ -567,6 +572,7 @@ class BeamTemplate:
         self.slidingJointFunction = slidingJointFunction
         self.loadTipFunction = loadTipFunction
         self.interpolateBCForSlidingJoint = interpolateBCForSlidingJoint
+        self.fixBCWhenSliderNotMoving = fixBCWhenSliderNotMoving
     
     def GetBeamParamatersAsDict(self):
         return vars(self)

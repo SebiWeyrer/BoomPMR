@@ -22,32 +22,30 @@ def GetStandardValues(nGlobalModes=None):
     rawDataLabelList = ['displ. x in m', 'displ. y in m', 'rot in rad']
     markerList = ['-o', '-*', '-p', '-+']
     timeStr = 'time in s'
-    slidingStr = 'sliding'
+    slidingStr = 'sliding phase'
     return standardColors, labelList, rawDataLabelList, markerList, timeStr, slidingStr
 
-def SaveFig(figure, path, name, closeFig=False):
-    figure.savefig(path / f'{name}.pdf')
-    figure.savefig(path / f'{name}.png', dpi=300)
+def SaveFig(figure, path, name, closeFig=False, saveFig=True):
+    if saveFig:
+        figure.savefig(path / f'{name}.pdf')
+        figure.savefig(path / f'{name}.png', dpi=300)
     if closeFig:
         plt.close('all')
 
-
 def SetMatplotlibSettings():
-    fsize = 12 # general fontsize
-    tsize = 12 # legend
-    # setting ticks, fontsize
-    tdir = 'out' # 'in' or 'out': direction of ticks
-    major = 5.0 # length major ticks
-    minor = 3.0 # length minor ticks
-    lwidth = 0.8 # width of the frame
-    lhandle = 2 # length legend handle
+    fsize = 9
+    tsize = 8
+    tdir = 'out'
+    major = 5.0
+    minor = 3.0
+    lwidth = 0.8
+    lhandle = 2
     plt.style.use('default')
-    # set font to the locally saved computermodern type
-    plt.rcParams['font.family']='serif'
+    plt.rcParams['font.family'] = 'serif'
     cmfont = font_manager.FontProperties(fname=mpl.get_data_path() + '/fonts/ttf/cmr10.ttf')
-    plt.rcParams['font.serif']=cmfont.get_name()
-    plt.rcParams['mathtext.fontset']='cm'
-    plt.rcParams['axes.unicode_minus']=False
+    plt.rcParams['font.serif'] = cmfont.get_name()
+    plt.rcParams['mathtext.fontset'] = 'cm'
+    plt.rcParams['axes.unicode_minus'] = False
     plt.rcParams['font.size'] = fsize
     plt.rcParams['legend.fontsize'] = tsize
     plt.rcParams['xtick.direction'] = tdir
@@ -56,11 +54,15 @@ def SetMatplotlibSettings():
     plt.rcParams['xtick.minor.size'] = minor
     plt.rcParams['ytick.major.size'] = major
     plt.rcParams['ytick.minor.size'] = minor
+    plt.rcParams['xtick.major.pad'] = 4
+    plt.rcParams['ytick.major.pad'] = 4
     plt.rcParams['axes.linewidth'] = lwidth
     plt.rcParams['axes.formatter.use_mathtext'] = True
     plt.rcParams['legend.handlelength'] = lhandle
     plt.rcParams['lines.linewidth'] = 1.2
-    return
+    plt.rcParams['savefig.bbox'] = 'tight'
+    plt.rcParams['figure.autolayout'] = True
+    plt.rcParams['figure.dpi'] = 150
 
 def PrintHeadlineToConsole(length=80, text=None):
         if not text:
@@ -248,6 +250,12 @@ def NRMSE(signal, reference):
     norm = np.max(reference) - np.min(reference)
     return rmse / norm
 
+def RMSE(signal, reference):
+    return np.sqrt(np.mean((signal - reference)**2))
+
+def AbsError(signal, reference):
+    return np.linalg.norm(signal-reference)
+
 # helping function for the Normalized Root-Mean-Square Error (NRMSE) of a vector signal
 def NRMSEVector(signal, reference):
     # signal, reference: [nTimeSteps, nNodes}
@@ -267,5 +275,5 @@ def GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False
     simulationSettings.timeIntegration.verboseMode = 0
     visualizationSettings.general.autoFitScene = True
     if exportFrames:
-        simulationSettings.solutionSettings.recordImagesInterval = h*100
+        simulationSettings.solutionSettings.recordImagesInterval = h*20
     return simulationSettings
