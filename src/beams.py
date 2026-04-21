@@ -6,7 +6,7 @@
 #           constraints are supported. This class also natively supports
 #           adding the beams (with graphics) to EXUDYN.
 # Author:   Sebastian Weyrer
-# Date:     2026-04-20
+# Date:     2026-04-21
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -200,34 +200,57 @@ class EulerBernulliBeam:
     # class function to internally set the node number that is currently constrained depending on the sliding joint function
     # note that this function receives the non reduced coordinates of the beam
     # note that this functions assumes that the sliding joint is between node A and node B; alpha weights between A and B
+    # def SetConstrainedNodeNumbersDueToSlidingJoint(self, q, t):
+    #     positionListToSetConstrained = self.nodeReferencePositionsList
+    #     if False: # this can cause instabilities!
+    #         qTotal = q + np.array(self.coordinatesReferenceList)
+    #         qXTotal = qTotal[::3]
+    #         positionListToSetConstrained = qxTotal
+        
+    #     #++++++++++++++++++++++++++++++++++++++++++++++++++
+    #     # determine whether joint is moving or not
+    #     if self.fixBCWhenSliderNotMoving:
+    #         jointMoving = False # per default, the joint is not moving
+    #         if abs(self.SlidingJointFunction(t+1e-6)-self.SlidingJointFunction(t)) >= 1e-12:
+    #             jointMoving = True
+    #     else:
+    #         jointMoving = True # when not fixed, joint is always moving (per default)
+        
+    #     #++++++++++++++++++++++++++++++++++++++++++++++++++
+    #     # compute node A and B and suggestion for alpha
+    #     idxNodeA = np.where(positionListToSetConstrained < self.SlidingJointFunction(t))[0][-1] # LAST element that is smaller than current pos
+    #     # to avoid node flickering, check whether idxNodeA is increasing, otherwise, do not change
+    #     # if joint not moving, idxNodeA only can increase for the interpolation case
+    #     if not self.interpolateBCForSlidingJoint or not jointMoving:
+    #         if idxNodeA > self.idxNodeA:
+    #             pass
+    #         else:
+    #             idxNodeA = self.idxNodeA # overwrite, such that no jumping back is possible
+    #     if idxNodeA > (self.nNodes-2):
+    #         idxNodeA = self.nNodes - 2 # such that we do not slide beyond the beam
+    #     self.idxNodeB = idxNodeA + 1
+    #     self.idxNodeA = idxNodeA
+    #     posNodeA = positionListToSetConstrained[self.idxNodeA]
+    #     posNodeB = positionListToSetConstrained[self.idxNodeB]
+        
+    #     #++++++++++++++++++++++++++++++++++++++++++++++++++
+    #     # compute recommendation for alpha that is used depending on BC interpolation method
+    #     alpha = np.clip((self.SlidingJointFunction(t)-posNodeA)/(posNodeB-posNodeA), 0, 1) # bounded
+        
+    #     #++++++++++++++++++++++++++++++++++++++++++++++++++
+    #     # pin to one node if either joint is not moving OR we do NOT interpolate
+    #     if not self.interpolateBCForSlidingJoint or not jointMoving:
+    #         if alpha >= 0.5:
+    #             alpha = 1
+    #         else:
+    #             alpha = 0
+    #     # and compute hermite weight
+    #     self.w = 3*alpha**2 - 2*alpha**3
+    
     def SetConstrainedNodeNumbersDueToSlidingJoint(self, q, t):
         positionListToSetConstrained = self.nodeReferencePositionsList
-        if False: # this can cause instabilities!
-            qTotal = q + np.array(self.coordinatesReferenceList)
-            qXTotal = qTotal[::3]
-            positionListToSetConstrained = qxTotal
-        
-        #++++++++++++++++++++++++++++++++++++++++++++++++++
-        # determine whether joint is moving or not
-        if self.fixBCWhenSliderNotMoving:
-            jointMoving = False # per default, the joint is not moving
-            if abs(self.SlidingJointFunction(t+1e-6)-self.SlidingJointFunction(t)) >= 1e-12:
-                jointMoving = True
-        else:
-            jointMoving = True # when not fixed, joint is always moving (per default)
-        
-        #++++++++++++++++++++++++++++++++++++++++++++++++++
         # compute node A and B and suggestion for alpha
         idxNodeA = np.where(positionListToSetConstrained < self.SlidingJointFunction(t))[0][-1] # LAST element that is smaller than current pos
-        # to avoid node flickering, check whether idxNodeA is increasing, otherwise, do not change
-        # if joint not moving, idxNodeA only can increase for the interpolation case
-        if not self.interpolateBCForSlidingJoint or not jointMoving:
-            if idxNodeA > self.idxNodeA:
-                pass
-            else:
-                idxNodeA = self.idxNodeA # overwrite, such that no jumping back is possible
-        if idxNodeA > (self.nNodes-2):
-            idxNodeA = self.nNodes - 2 # such that we do not slide beyond the beam
         self.idxNodeB = idxNodeA + 1
         self.idxNodeA = idxNodeA
         posNodeA = positionListToSetConstrained[self.idxNodeA]
@@ -235,29 +258,36 @@ class EulerBernulliBeam:
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
         # compute recommendation for alpha that is used depending on BC interpolation method
-        alpha = np.clip((self.SlidingJointFunction(t)-posNodeA)/(posNodeB-posNodeA), 0, 1) # bounded
+        self.alpha = np.clip((self.SlidingJointFunction(t)-posNodeA)/(posNodeB-posNodeA), 0, 1) # bounded
         
-        #++++++++++++++++++++++++++++++++++++++++++++++++++
-        # pin to one node if either joint is not moving OR we do NOT interpolate
-        if not self.interpolateBCForSlidingJoint or not jointMoving:
-            if alpha >= 0.5:
-                alpha = 1
-            else:
-                alpha = 0
-        # and compute hermite weight
-        self.w = 3*alpha**2 - 2*alpha**3
         
     # class function that returns the (residuums) of the constraint euqtions, either in 'normal' or reduced coordinates
     # the connector holds q for both markers (i.e. objects) it connects
     # since the ground marker does not hold coordinates, here it only holds the coordinates of the ODE2 object
     # note that this function actually receives the modally reduced coordinates p
+    # def UFConstrained(self, mbs, t, itemNumber, p, p_t, velcoityLevel):
+    #     q = self.reductionBasis @ p # map the modal coordinates to 'real' ones
+    #     self.SetConstrainedNodeNumbersDueToSlidingJoint(q, t)
+    #     g = [] # initialize the constraint vector
+    #     g += [q[0]-0] # first node, x coordinate is constrained
+    #     g += [q[1]-0] # first node, y coordinate is constrained
+    #     g += [(1-self.w)*q[self.nDOFsPerNode*self.idxNodeA+1] + self.w*q[self.nDOFsPerNode*self.idxNodeB+1]]
+    #     return g
+    
     def UFConstrained(self, mbs, t, itemNumber, p, p_t, velcoityLevel):
         q = self.reductionBasis @ p # map the modal coordinates to 'real' ones
         self.SetConstrainedNodeNumbersDueToSlidingJoint(q, t)
+        # Hermite shape functions
+        N2 = 1 - 3*self.alpha**2 + 2*self.alpha**3        # y at node A
+        N3 = (self.alpha - 2*self.alpha**2 + self.alpha**3) * self.lElement  # rotation at node A
+        N5 = 3*self.alpha**2 - 2*self.alpha**3            # y at node B
+        N6 = (-self.alpha**2 + self.alpha**3) * self.lElement        # rotation at node B
+        idxA = self.nDOFsPerNode * self.idxNodeA
+        idxB = self.nDOFsPerNode * self.idxNodeB
         g = [] # initialize the constraint vector
         g += [q[0]-0] # first node, x coordinate is constrained
         g += [q[1]-0] # first node, y coordinate is constrained
-        g += [(1-self.w)*q[self.nDOFsPerNode*self.idxNodeA+1] + self.w*q[self.nDOFsPerNode*self.idxNodeB+1]]
+        g += [N2*q[idxA+1] + N3*q[idxA+2] + N5*q[idxB+1] + N6*q[idxB+2]]
         return g
     
     # class function that returns the Jacobian of the constraints, either in 'normal' or reduced coordinates
@@ -266,13 +296,35 @@ class EulerBernulliBeam:
     # non transposed joint equations C derived by q: C_q (nAE x 2q)
     # the transposed C_qT is multiplied from the left to the Lagrangians --> gives us a 2q vector
     # note that this function actually receives the modally reduced coordinates p
+    # def UFJacobian(self, mbs, t, itemNumber, p, p_t, velocityLevel):
+    #     # here we first of all set up the Jacobian in full coordinates
+    #     C_q = np.zeros([3, self.nDOFs])
+    #     C_q[0, 0] = 1 # first AE is g[0] = q[0] - 0
+    #     C_q[1, 1] = 1 # second AE is g[1] = q[1] - 0
+    #     C_q[2, self.nDOFsPerNode*self.idxNodeA+1] = (1-self.w)
+    #     C_q[2, self.nDOFsPerNode*self.idxNodeB+1] = self.w
+    #     # now we reduce the Jacobian
+    #     C_q_Red = C_q @ self.reductionBasis
+    #     return C_q_Red
+    
     def UFJacobian(self, mbs, t, itemNumber, p, p_t, velocityLevel):
+        N2 = 1 - 3*self.alpha**2 + 2*self.alpha**3
+        N3 = (self.alpha - 2*self.alpha**2 + self.alpha**3) * self.lElement
+        N5 = 3*self.alpha**2 - 2*self.alpha**3
+        N6 = (-self.alpha**2 + self.alpha**3) * self.lElement
+        
+        idxA = self.nDOFsPerNode * self.idxNodeA
+        idxB = self.nDOFsPerNode * self.idxNodeB
+    
+    
         # here we first of all set up the Jacobian in full coordinates
         C_q = np.zeros([3, self.nDOFs])
         C_q[0, 0] = 1 # first AE is g[0] = q[0] - 0
         C_q[1, 1] = 1 # second AE is g[1] = q[1] - 0
-        C_q[2, self.nDOFsPerNode*self.idxNodeA+1] = (1-self.w)
-        C_q[2, self.nDOFsPerNode*self.idxNodeB+1] = self.w
+        C_q[2, idxA+1] = N2
+        C_q[2, idxA+2] = N3
+        C_q[2, idxB+1] = N5
+        C_q[2, idxB+2] = N6
         # now we reduce the Jacobian
         C_q_Red = C_q @ self.reductionBasis
         return C_q_Red

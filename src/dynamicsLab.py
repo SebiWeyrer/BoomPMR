@@ -2,7 +2,7 @@
 #
 # Details:  
 # Author:   Sebastian Weyrer
-# Date:     2026-04-16
+# Date:     2026-04-21
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -159,7 +159,7 @@ PrintHeadlineToConsole(text='Convergence Analysis')
 LoadTipFunctionConvergenceAnalysis = LoadTipFunctionEvolved
 def SlidingJointFunctionSpecial(t, startPosition=startPosition, stopPosition=stopPosition):
     return startPosition + ((stopPosition-startPosition)/tEnd) * t
-SlidingJointFunctionConvergenceAnalysis = SlidingJointFunctionSpecial
+SlidingJointFunctionConvergenceAnalysis = SlidingJointFunctionEvolved
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # initialize beam (to inherit some data to ANCF beam) and initialize mbs
