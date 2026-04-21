@@ -27,6 +27,9 @@ nElementsBeam = 50  # from convergence analysis (see later)
 beamTemplateRubber = BeamTemplate(physicsLength=length,
                                   physicsAxialStiffness=2e7, physicsBendingStiffness=5e4,
                                   physicsMassPerLength=78, nElements=nElementsBeam)
+# beamTemplateSteel = BeamTemplate(physicsLength=length,
+#                                  physicsAxialStiffness=2e6, physicsBendingStiffness=2e6,
+#                                  physicsMassPerLength=78, nElements=nElementsBeam)
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # define time parameters of simulation
@@ -67,10 +70,10 @@ SaveFig(figEigenmodes, figPath, 'M_exampleInterpolations', closeFig=True, saveFi
 
 #%% define and plot the two test cases used: SIMPLE and EVOLVED
 PrintHeadlineToConsole(text='Plot Test Cases')
-startPosition = length/4
-stopPosition = length*(3/4)
-startTime = tExperiment/4 * 0
-stopTime = tExperiment*(3/4) * 0 + tExperiment
+startPosition = length/4        # [m] start position of slider (slider cannot move further to start)
+stopPosition = length*(3/4)     # [m] stop position of slider (slider cannot move further to end)
+startTime = tExperiment/4       # [s] start of test (slider starts, load gets varied)
+stopTime = tExperiment*(3/4)    # [s] end of test (slider stops, load gets constant)
 A = 50                          # [N] max. amplitude of load functions
 def LoadTipFunctionSimple(mbs, t, load):
     return -A
@@ -142,7 +145,7 @@ axTestCases[1].set_xticks(np.arange(0, 16, 1))
 figTestCases.supylabel(r'$\ast$ slider position in m', color=colorSlider, x=0.03)
 figTestCases.text(0.97, 0.5, 'tip load in N', color=colorLoad, 
                   va='center', ha='right', rotation=90)
-# add grids
+# add grids, shaded area, ...
 for ax in axTestCases:
     ax.grid()
     ax.axvspan(startTime, stopTime, color='gray', alpha=0.2, label=slidingStr, zorder=0)
@@ -154,7 +157,9 @@ SaveFig(figTestCases, figPath, 'E_testCases', closeFig=True)
 PrintHeadlineToConsole(text='Convergence Analysis')
 # set load and slidingJoint function for convergence analysis
 LoadTipFunctionConvergenceAnalysis = LoadTipFunctionEvolved
-SlidingJointFunctionConvergenceAnalysis = SlidingJointFunctionEvolved
+def SlidingJointFunctionSpecial(t, startPosition=startPosition, stopPosition=stopPosition):
+    return startPosition + ((stopPosition-startPosition)/tEnd) * t
+SlidingJointFunctionConvergenceAnalysis = SlidingJointFunctionSpecial
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # initialize beam (to inherit some data to ANCF beam) and initialize mbs
@@ -188,9 +193,10 @@ for tipDisplacementConvergenceAnalysisANCF in tipDisplacementConvergenceAnalysis
     errorListConvergenceAnalysisANCF += [AbsError(tipDisplacementConvergenceAnalysisANCF, tipDisplacementConvergenceAnalysisANCFList[-1])]
 errorListConvergenceAnalysisANCF += [0]
 
+#%%
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # beam elements
-nElementsBeamList = np.linspace(10, 200, 10, dtype=int) # hard coded!
+nElementsBeamList = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70] # np.linspace(5, 70, 14, dtype=int) # hard coded!
 tipDisplacementConvergenceAnalysisBeamList = []
 for i, nElementsBeam in enumerate(nElementsBeamList):
     
@@ -221,7 +227,6 @@ for i, nElementsBeam in enumerate(nElementsBeamList):
     _, time, qConvergenceAnalysis, q_tConvergenceAnalysis = beamConvergenceAnalysis.GetTimeAndCoordinates(mbs, sCoordinatesConvergenceAnalysisBeam, sCoordinates_tConvergenceAnalysisBeam)
     tipDisplacementConvergenceAnalysisBeamList += [qConvergenceAnalysis[:, -2]]
     print('Beam convergence analysis: Finished', i+1, '/', len(nElementsBeamList), 'analyses.')
-# compute the error against the ANCF solution
 errorListConvergenceAnalysisBeam = []
 for tipDisplacementConvergenceAnalysisBeam in tipDisplacementConvergenceAnalysisBeamList[:-1]:
     errorListConvergenceAnalysisBeam += [AbsError(tipDisplacementConvergenceAnalysisBeam, tipDisplacementConvergenceAnalysisBeamList[-1])]

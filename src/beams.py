@@ -208,7 +208,7 @@ class EulerBernulliBeam:
             positionListToSetConstrained = qxTotal
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
-        # determine whether joint is sliding or not (this is bypassed per default)
+        # determine whether joint is moving or not
         if self.fixBCWhenSliderNotMoving:
             jointMoving = False # per default, the joint is not moving
             if abs(self.SlidingJointFunction(t+1e-6)-self.SlidingJointFunction(t)) >= 1e-12:
