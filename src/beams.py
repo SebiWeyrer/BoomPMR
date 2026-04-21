@@ -70,14 +70,14 @@ class EulerBernulliBeam:
         self.idxNodeA = 0 # initialize with zero
         SlidingJointFunction = params.get('slidingJointFunction') # this function gives us pos of sliding joint over time
         if SlidingJointFunction is None:
-            print('WARNING: Specify a "SlidingJointFunction", unless you only want visualization!')
+            print('WARNING: Specify a "SlidingJointFunction", unless you only want visualization/initialization!')
             def SlidingJointFunction(t):
                 return self.L/2
         self.SlidingJointFunction = SlidingJointFunction
         self.SetConstrainedNodeNumbersDueToSlidingJoint(np.zeros(self.nDOFs), 0) # initialization call
         LoadTipFunction = params.get('loadTipFunction')
         if LoadTipFunction is None:
-            print('WARNING: Specify a "LoadTipFunction", unless you only want visualization!')
+            print('WARNING: Specify a "LoadTipFunction", unless you only want visualization/initialization!')
             def LoadTipFunction(mbs, t, load):
                 return 0
         self.LoadTipFunction = LoadTipFunction
@@ -202,7 +202,7 @@ class EulerBernulliBeam:
     # note that this functions assumes that the sliding joint is between node A and node B; alpha weights between A and B
     def SetConstrainedNodeNumbersDueToSlidingJoint(self, q, t):
         positionListToSetConstrained = self.nodeReferencePositionsList
-        if False: # this can cause instabilities but is more accurate
+        if False: # this can cause instabilities!
             qTotal = q + np.array(self.coordinatesReferenceList)
             qXTotal = qTotal[::3]
             positionListToSetConstrained = qxTotal
