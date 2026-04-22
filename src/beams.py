@@ -6,7 +6,7 @@
 #           constraints are supported. This class also natively supports
 #           adding the beams (with graphics) to EXUDYN.
 # Author:   Sebastian Weyrer
-# Date:     2026-04-21
+# Date:     2026-04-22
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -66,7 +66,6 @@ class EulerBernulliBeam:
         #++++++++++++++++++++++++++++++++++++++++++++++++++
         # special settings and variable initializations due to sliding joint and force
         self.interpolateBCForSlidingJoint = params.get('interpolateBCForSlidingJoint')
-        self.fixBCWhenSliderNotMoving = params.get('fixBCWhenSliderNotMoving')
         self.idxNodeA = 0 # initialize with zero
         SlidingJointFunction = params.get('slidingJointFunction') # this function gives us pos of sliding joint over time
         if SlidingJointFunction is None:
@@ -200,80 +199,30 @@ class EulerBernulliBeam:
     # class function to internally set the node number that is currently constrained depending on the sliding joint function
     # note that this function receives the non reduced coordinates of the beam
     # note that this functions assumes that the sliding joint is between node A and node B; alpha weights between A and B
-    # def SetConstrainedNodeNumbersDueToSlidingJoint(self, q, t):
-    #     positionListToSetConstrained = self.nodeReferencePositionsList
-    #     if False: # this can cause instabilities!
-    #         qTotal = q + np.array(self.coordinatesReferenceList)
-    #         qXTotal = qTotal[::3]
-    #         positionListToSetConstrained = qxTotal
-        
-    #     #++++++++++++++++++++++++++++++++++++++++++++++++++
-    #     # determine whether joint is moving or not
-    #     if self.fixBCWhenSliderNotMoving:
-    #         jointMoving = False # per default, the joint is not moving
-    #         if abs(self.SlidingJointFunction(t+1e-6)-self.SlidingJointFunction(t)) >= 1e-12:
-    #             jointMoving = True
-    #     else:
-    #         jointMoving = True # when not fixed, joint is always moving (per default)
-        
-    #     #++++++++++++++++++++++++++++++++++++++++++++++++++
-    #     # compute node A and B and suggestion for alpha
-    #     idxNodeA = np.where(positionListToSetConstrained < self.SlidingJointFunction(t))[0][-1] # LAST element that is smaller than current pos
-    #     # to avoid node flickering, check whether idxNodeA is increasing, otherwise, do not change
-    #     # if joint not moving, idxNodeA only can increase for the interpolation case
-    #     if not self.interpolateBCForSlidingJoint or not jointMoving:
-    #         if idxNodeA > self.idxNodeA:
-    #             pass
-    #         else:
-    #             idxNodeA = self.idxNodeA # overwrite, such that no jumping back is possible
-    #     if idxNodeA > (self.nNodes-2):
-    #         idxNodeA = self.nNodes - 2 # such that we do not slide beyond the beam
-    #     self.idxNodeB = idxNodeA + 1
-    #     self.idxNodeA = idxNodeA
-    #     posNodeA = positionListToSetConstrained[self.idxNodeA]
-    #     posNodeB = positionListToSetConstrained[self.idxNodeB]
-        
-    #     #++++++++++++++++++++++++++++++++++++++++++++++++++
-    #     # compute recommendation for alpha that is used depending on BC interpolation method
-    #     alpha = np.clip((self.SlidingJointFunction(t)-posNodeA)/(posNodeB-posNodeA), 0, 1) # bounded
-        
-    #     #++++++++++++++++++++++++++++++++++++++++++++++++++
-    #     # pin to one node if either joint is not moving OR we do NOT interpolate
-    #     if not self.interpolateBCForSlidingJoint or not jointMoving:
-    #         if alpha >= 0.5:
-    #             alpha = 1
-    #         else:
-    #             alpha = 0
-    #     # and compute hermite weight
-    #     self.w = 3*alpha**2 - 2*alpha**3
-    
     def SetConstrainedNodeNumbersDueToSlidingJoint(self, q, t):
-        positionListToSetConstrained = self.nodeReferencePositionsList
-        # compute node A and B and suggestion for alpha
-        idxNodeA = np.where(positionListToSetConstrained < self.SlidingJointFunction(t))[0][-1] # LAST element that is smaller than current pos
-        self.idxNodeB = idxNodeA + 1
-        self.idxNodeA = idxNodeA
-        posNodeA = positionListToSetConstrained[self.idxNodeA]
-        posNodeB = positionListToSetConstrained[self.idxNodeB]
+        # use the reference position of the nodes to set the slider constraint
+        positionListToSetConstraint = self.nodeReferencePositionsList
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
-        # compute recommendation for alpha that is used depending on BC interpolation method
+        # compute node A and B and suggestion for alpha (= x/L, where x is the local element position)
+        idxNodeA = np.where(positionListToSetConstraint < self.SlidingJointFunction(t))[0][-1] # LAST element that is smaller than current pos
+        # for the case that we do NOT interpolate, we have to introduce a way to avoid node flickering
+        # note that by doing this, slider cannot move back (against axis of beam)
+        if self.interpolateBCForSlidingJoint: # TODO: clear that problem
+            if idxNodeA > self.idxNodeA:
+                pass
+            else:
+                idxNodeA = self.idxNodeA
+        self.idxNodeB = idxNodeA + 1
+        self.idxNodeA = idxNodeA
+        posNodeA = positionListToSetConstraint[self.idxNodeA]
+        posNodeB = positionListToSetConstraint[self.idxNodeB]
         self.alpha = np.clip((self.SlidingJointFunction(t)-posNodeA)/(posNodeB-posNodeA), 0, 1) # bounded
-        
         
     # class function that returns the (residuums) of the constraint euqtions, either in 'normal' or reduced coordinates
     # the connector holds q for both markers (i.e. objects) it connects
     # since the ground marker does not hold coordinates, here it only holds the coordinates of the ODE2 object
     # note that this function actually receives the modally reduced coordinates p
-    # def UFConstrained(self, mbs, t, itemNumber, p, p_t, velcoityLevel):
-    #     q = self.reductionBasis @ p # map the modal coordinates to 'real' ones
-    #     self.SetConstrainedNodeNumbersDueToSlidingJoint(q, t)
-    #     g = [] # initialize the constraint vector
-    #     g += [q[0]-0] # first node, x coordinate is constrained
-    #     g += [q[1]-0] # first node, y coordinate is constrained
-    #     g += [(1-self.w)*q[self.nDOFsPerNode*self.idxNodeA+1] + self.w*q[self.nDOFsPerNode*self.idxNodeB+1]]
-    #     return g
-    
     def UFConstrained(self, mbs, t, itemNumber, p, p_t, velcoityLevel):
         q = self.reductionBasis @ p # map the modal coordinates to 'real' ones
         self.SetConstrainedNodeNumbersDueToSlidingJoint(q, t)
@@ -581,17 +530,6 @@ class EulerBernulliBeam:
                                        nodeNumbersConstrainedList=self.nodeNumbersConstrainedList, figSize=figSize)
         globalReductionBasis = self.GetGlobalReductionBasisUsingEigenmodesList(eigenmodesList=eigenmodesLiftedAndMassNormalizedListPMR,
                                                                                  nGlobalModes=nGlobalModes, verbose=verbose)
-        if plot:
-            fig, ax = plt.subplots()
-            im = ax.imshow(globalReductionBasis, cmap='viridis', aspect='auto')
-            fig.colorbar(im, ax=ax)
-            ax.set_xlabel("Columns")
-            ax.set_ylabel("Rows")
-            plt.show()
-        # self.DiagnoseReductionBasis(reductionBasis=globalReductionBasis, plot=plot)
-        # the bug was that the constrained node number flickered, however, also enrichment of reduction basis is now supported
-        # globalReductionBasisEnriched = beamPMR.EnrichReductionBasis(reductionBasis=globalReductionBasis)
-        # beamPMR.DiagnoseReductionBasis(reductionBasis=globalReductionBasisEnriched, plot=True)
         self.ReduceBeam(reductionBasis=globalReductionBasis)
     
     # class function to get info about 'time' and the coordinates q and q_t with given sensor numbers
@@ -611,8 +549,7 @@ class EulerBernulliBeam:
 class BeamTemplate:
     def __init__(self, physicsLength=1, physicsMassPerLength=5, physicsBendingStiffness=3e4,
                  physicsAxialStiffness=6e6, nElements=10, widthForDrawing=0.2, color=graphics.color.blue,
-                 positionReference=[0, 0, 0], slidingJointFunction=None, loadTipFunction=None, interpolateBCForSlidingJoint=True,
-                 fixBCWhenSliderNotMoving=False):
+                 positionReference=[0, 0, 0], slidingJointFunction=None, loadTipFunction=None, interpolateBCForSlidingJoint=True):
         self.physicsLength = physicsLength
         self.physicsMassPerLength = physicsMassPerLength
         self.physicsBendingStiffness = physicsBendingStiffness
@@ -624,7 +561,6 @@ class BeamTemplate:
         self.slidingJointFunction = slidingJointFunction
         self.loadTipFunction = loadTipFunction
         self.interpolateBCForSlidingJoint = interpolateBCForSlidingJoint
-        self.fixBCWhenSliderNotMoving = fixBCWhenSliderNotMoving
     
     def GetBeamParamatersAsDict(self):
         return vars(self)

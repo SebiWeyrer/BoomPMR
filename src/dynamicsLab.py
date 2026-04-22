@@ -27,9 +27,6 @@ nElementsBeam = 50  # from convergence analysis (see later)
 beamTemplateRubber = BeamTemplate(physicsLength=length,
                                   physicsAxialStiffness=2e7, physicsBendingStiffness=5e4,
                                   physicsMassPerLength=78, nElements=nElementsBeam)
-# beamTemplateSteel = BeamTemplate(physicsLength=length,
-#                                  physicsAxialStiffness=2e6, physicsBendingStiffness=2e6,
-#                                  physicsMassPerLength=78, nElements=nElementsBeam)
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # define time parameters of simulation
@@ -45,19 +42,29 @@ standardColors, labelList, rawDataLabelList, markerList, timeStr, slidingStr = G
 parentDir = Path.cwd().parent
 figPath = parentDir / 'LaTeX' / 'figures'
 
-#%% plot interpolations
-PrintHeadlineToConsole(text='Plot Interpolation Types')
-alpha = np.linspace(0, 1, 501)
-w = 3*alpha**2 - 2*alpha**3
-sigma = (alpha >= 0.5).astype(float)
-figHermite, axHermite = plt.subplots(1, 1, figsize=[textWidth, 2])
-axHermite.plot(alpha, sigma, 's-', label='no interpolation', markevery=50)
-axHermite.plot(alpha, w, '^-', label='Hermite interpolation', markevery=50)
-axHermite.legend()
-axHermite.set_xlabel(r'normalized slider position $\alpha$ between nodes A and B')
-axHermite.set_ylabel(r'constraint weight $w$ node B')
-axHermite.grid()
-SaveFig(figHermite, figPath, 'M_bindingVectorInterpolation', closeFig=True)
+#%% plot interpolation of y displacement within beam element
+PrintHeadlineToConsole(text='Plot Example Interpolation for Illustration')
+lElement = 1
+q2 = -0.05
+q3 = pi/15
+q5 = 0.1
+q6 = pi/8
+def InterpolationOfYDisplacement(alpha):
+    N2 = 1 - 3*alpha**2 + 2*alpha**3
+    N3 = (alpha - 2*alpha**2 + alpha**3) * lElement
+    N5 = 3*alpha**2 - 2*alpha**3
+    N6 = (-alpha**2 + alpha**3) * lElement
+    return N2*q2 + N3*q3 + N5*q5 + N6*q6
+alpha = np.linspace(0, 1, 1000)
+yInter = [InterpolationOfYDisplacement(i) for i in alpha]
+figInter, axInter = plt.subplots(1, 1, figsize=[textWidth, 2.5])
+axInter.plot(alpha, yInter)
+axInter.set_xlabel(r'relative position $\alpha$ along element')
+axInter.set_ylabel('interpolated y-displacement in m')
+axInter.set_xlim([-0.1, 1.1])
+axInter.set_ylim([-0.1, 0.15])
+axInter.grid()
+SaveFig(figInter, figPath, 'M_yDisplacementInterpolation', closeFig=False, saveFig=False)
 
 #%% plot snapshots for three sliding joint positions for illustration (graphical abstract)
 PrintHeadlineToConsole(text='Plot Snapshots for Illustration')
@@ -151,14 +158,12 @@ for ax in axTestCases:
     ax.axvspan(startTime, stopTime, color='gray', alpha=0.2, label=slidingStr, zorder=0)
     ax.legend(loc='upper left')
 figTestCases.tight_layout(rect=[0, 0, 0.96, 1])
-SaveFig(figTestCases, figPath, 'E_testCases', closeFig=True)
+SaveFig(figTestCases, figPath, 'E_testCases', closeFig=False)
 
 #%% do convergence analysis to get good amount of ANCF and beam elements
 PrintHeadlineToConsole(text='Convergence Analysis')
 # set load and slidingJoint function for convergence analysis
 LoadTipFunctionConvergenceAnalysis = LoadTipFunctionEvolved
-def SlidingJointFunctionSpecial(t, startPosition=startPosition, stopPosition=stopPosition):
-    return startPosition + ((stopPosition-startPosition)/tEnd) * t
 SlidingJointFunctionConvergenceAnalysis = SlidingJointFunctionEvolved
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -193,10 +198,9 @@ for tipDisplacementConvergenceAnalysisANCF in tipDisplacementConvergenceAnalysis
     errorListConvergenceAnalysisANCF += [AbsError(tipDisplacementConvergenceAnalysisANCF, tipDisplacementConvergenceAnalysisANCFList[-1])]
 errorListConvergenceAnalysisANCF += [0]
 
-#%%
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # beam elements
-nElementsBeamList = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70] # np.linspace(5, 70, 14, dtype=int) # hard coded!
+nElementsBeamList = np.linspace(2, 20, 10, dtype=int) # hard coded!
 tipDisplacementConvergenceAnalysisBeamList = []
 for i, nElementsBeam in enumerate(nElementsBeamList):
     
