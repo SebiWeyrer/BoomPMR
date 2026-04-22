@@ -2,10 +2,11 @@
 #
 # Details:  Utilities for the 'BoomPMR'-Project.
 # Author:   Sebastian Weyrer
-# Date:     2026-03-27
+# Date:     2026-04-22
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+import pickle
 import exudyn as exu
 import exudyn.graphics as graphics
 from exudyn.utilities import *
@@ -277,3 +278,19 @@ def GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False
     if exportFrames:
         simulationSettings.solutionSettings.recordImagesInterval = h*20
     return simulationSettings
+
+def AppendResultsToPKLFile(fileName, key, newResultsDict):
+    with open(fileName, 'rb') as f:
+        data = pickle.load(f)
+    if key in data['results']:
+        data['results'][key].update(newResultsDict)
+    else:
+        data['results'][key] = newResultsDict
+    with open(fileName, 'wb') as f:
+        pickle.dump(data, f)
+
+def GetResultsDictFromPKLFile(fileName, key):
+    with open(fileName, 'rb') as f:
+        data = pickle.load(f)
+    return data['results'][key]
+    

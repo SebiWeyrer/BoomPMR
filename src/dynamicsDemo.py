@@ -44,7 +44,6 @@ nGlobalModes = 24                           # number of global modes in global r
 # define behavior of script
 tEnd = 15                                   # [s] duration of the experiment
 h = 1e-3                                    # [s] step size of integration
-interpolateBCForSlidingJoint = True         # decide whether hermite interpolation should be used to interpolate between BC positions
 addSpecificallyReducedBeam = False          # add SR beam (which breaks the solver)
 useRenderer = True                          # use EXUDYN's renderer?
 exportFrames = False                        # export frames
@@ -140,8 +139,7 @@ def LoadTipFunction(mbs, t, load):
 PrintHeadlineToConsole(text='Setting up beams')
 beamTemplateDemo = BeamTemplate(physicsLength=length, physicsAxialStiffness=EA, physicsBendingStiffness=EI,
                                 physicsMassPerLength=rhoA, nElements=nElements, widthForDrawing=width,
-                                slidingJointFunction=SlidingJointFunction, loadTipFunction=LoadTipFunction,
-                                interpolateBCForSlidingJoint=interpolateBCForSlidingJoint)
+                                slidingJointFunction=SlidingJointFunction, loadTipFunction=LoadTipFunction)
 beamNR = EulerBernulliBeam(beamTemplate=beamTemplateDemo, color=standardColors[1], positionReference=[0, yReferenceOffsetBeamNR, 0])
 if addSpecificallyReducedBeam:
     beamSR = EulerBernulliBeam(beamTemplate=beamTemplateDemo, positionReference=[0, yReferenceOffsetBeamSR, 0])

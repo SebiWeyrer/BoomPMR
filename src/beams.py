@@ -65,7 +65,9 @@ class EulerBernulliBeam:
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
         # special settings and variable initializations due to sliding joint and force
-        self.interpolateBCForSlidingJoint = params.get('interpolateBCForSlidingJoint')
+        self.doNotInterpolateForSlidingBC = params.get('doNotInterpolateForSlidingBC')
+        if self.doNotInterpolateForSlidingBC:
+            print('WARNING: You do not interpolate for the sliding Boundary Condition (BC) which is only implemented to demonstrate that it does not work well!')
         self.idxNodeA = 0 # initialize with zero
         SlidingJointFunction = params.get('slidingJointFunction') # this function gives us pos of sliding joint over time
         if SlidingJointFunction is None:
@@ -73,7 +75,7 @@ class EulerBernulliBeam:
             def SlidingJointFunction(t):
                 return self.L/2
         self.SlidingJointFunction = SlidingJointFunction
-        self.SetConstrainedNodeNumbersDueToSlidingJoint(np.zeros(self.nDOFs), 0) # initialization call
+        self.SetConstrainedNodeNumbersDueToSlidingJoint(np.zeros(self.nDOFs), 0) # initialization call; here idxNodeA is overwritten
         LoadTipFunction = params.get('loadTipFunction')
         if LoadTipFunction is None:
             print('WARNING: Specify a "LoadTipFunction", unless you only want visualization/initialization!')
@@ -206,9 +208,8 @@ class EulerBernulliBeam:
         #++++++++++++++++++++++++++++++++++++++++++++++++++
         # compute node A and B and suggestion for alpha (= x/L, where x is the local element position)
         idxNodeA = np.where(positionListToSetConstraint < self.SlidingJointFunction(t))[0][-1] # LAST element that is smaller than current pos
-        # for the case that we do NOT interpolate, we have to introduce a way to avoid node flickering
-        # note that by doing this, slider cannot move back (against axis of beam)
-        if self.interpolateBCForSlidingJoint: # TODO: clear that problem
+        # for the case that we do NOT interpolate, we have to introduce a way to avoid node flickering; note that by doing this, slider cannot move back (against axis of beam)
+        if self.doNotInterpolateForSlidingBC:
             if idxNodeA > self.idxNodeA:
                 pass
             else:
@@ -218,6 +219,14 @@ class EulerBernulliBeam:
         posNodeA = positionListToSetConstraint[self.idxNodeA]
         posNodeB = positionListToSetConstraint[self.idxNodeB]
         self.alpha = np.clip((self.SlidingJointFunction(t)-posNodeA)/(posNodeB-posNodeA), 0, 1) # bounded
+    
+    # class function that returns the coefficients for q2, q3, q5, and q6 to interpolate the y-displacement for a given alpha
+    def GetInterpolationCoefficientsForYDisplacement(self, alpha):
+        N2 = 1 - 3 * alpha**2 + 2 * alpha**3
+        N3 = (alpha-2*alpha**2+alpha**3) * self.lElement
+        N5 = 3 * alpha**2 - 2 * alpha**3
+        N6 = (-alpha**2+alpha**3) * self.lElement
+        return N2, N3, N5, N6
         
     # class function that returns the (residuums) of the constraint euqtions, either in 'normal' or reduced coordinates
     # the connector holds q for both markers (i.e. objects) it connects
@@ -226,54 +235,49 @@ class EulerBernulliBeam:
     def UFConstrained(self, mbs, t, itemNumber, p, p_t, velcoityLevel):
         q = self.reductionBasis @ p # map the modal coordinates to 'real' ones
         self.SetConstrainedNodeNumbersDueToSlidingJoint(q, t)
-        # Hermite shape functions
-        N2 = 1 - 3*self.alpha**2 + 2*self.alpha**3        # y at node A
-        N3 = (self.alpha - 2*self.alpha**2 + self.alpha**3) * self.lElement  # rotation at node A
-        N5 = 3*self.alpha**2 - 2*self.alpha**3            # y at node B
-        N6 = (-self.alpha**2 + self.alpha**3) * self.lElement        # rotation at node B
-        idxA = self.nDOFsPerNode * self.idxNodeA
-        idxB = self.nDOFsPerNode * self.idxNodeB
+        N2, N3, N5, N6 = self.GetInterpolationCoefficientsForYDisplacement(self.alpha)
+        q1IndexOfNodeA = self.nDOFsPerNode * self.idxNodeA
+        q1IndexOfNodeB = self.nDOFsPerNode * self.idxNodeB
         g = [] # initialize the constraint vector
         g += [q[0]-0] # first node, x coordinate is constrained
         g += [q[1]-0] # first node, y coordinate is constrained
-        g += [N2*q[idxA+1] + N3*q[idxA+2] + N5*q[idxB+1] + N6*q[idxB+2]]
+        if self.doNotInterpolateForSlidingBC:
+            if self.alpha >= 0.5:
+                w = 1
+            else:
+                w = 0
+            g += [(1-w)*q[q1IndexOfNodeA+1] + w*q[q1IndexOfNodeB+1]]
+        else: # default setting
+            g += [N2*q[q1IndexOfNodeA+1] + N3*q[q1IndexOfNodeA+2] + N5*q[q1IndexOfNodeB+1] + N6*q[q1IndexOfNodeB+2]]
         return g
     
     # class function that returns the Jacobian of the constraints, either in 'normal' or reduced coordinates
-    # the connector holds q for both markers (i.e. objects) it connects
-    # since the ground marker does not hold coordinates, here it only holds the coordinates of the ODE2 object
-    # non transposed joint equations C derived by q: C_q (nAE x 2q)
-    # the transposed C_qT is multiplied from the left to the Lagrangians --> gives us a 2q vector
+    # the connector holds q for both markers (i.e. objects) it connects (let us call them q_a and q_b here)
+    # non transposed joint equations C derived by q: C_q (nAE x (q_a + q_b))
+    # the transposed C_qT is multiplied to the Lagrangians (being on the left side) --> gives us a (q_a + q_b) vector
+    # since the ground marker does not hold coordinates, here it only holds the coordinates of the ODE2 object (here: q)
     # note that this function actually receives the modally reduced coordinates p
-    # def UFJacobian(self, mbs, t, itemNumber, p, p_t, velocityLevel):
-    #     # here we first of all set up the Jacobian in full coordinates
-    #     C_q = np.zeros([3, self.nDOFs])
-    #     C_q[0, 0] = 1 # first AE is g[0] = q[0] - 0
-    #     C_q[1, 1] = 1 # second AE is g[1] = q[1] - 0
-    #     C_q[2, self.nDOFsPerNode*self.idxNodeA+1] = (1-self.w)
-    #     C_q[2, self.nDOFsPerNode*self.idxNodeB+1] = self.w
-    #     # now we reduce the Jacobian
-    #     C_q_Red = C_q @ self.reductionBasis
-    #     return C_q_Red
-    
+    # the reduced coordinates are not used, since we assemble at first the full Jacobian and reduce it then
     def UFJacobian(self, mbs, t, itemNumber, p, p_t, velocityLevel):
-        N2 = 1 - 3*self.alpha**2 + 2*self.alpha**3
-        N3 = (self.alpha - 2*self.alpha**2 + self.alpha**3) * self.lElement
-        N5 = 3*self.alpha**2 - 2*self.alpha**3
-        N6 = (-self.alpha**2 + self.alpha**3) * self.lElement
-        
-        idxA = self.nDOFsPerNode * self.idxNodeA
-        idxB = self.nDOFsPerNode * self.idxNodeB
-    
-    
-        # here we first of all set up the Jacobian in full coordinates
+        N2, N3, N5, N6 = self.GetInterpolationCoefficientsForYDisplacement(self.alpha)
+        q1IndexOfNodeA = self.nDOFsPerNode * self.idxNodeA
+        q1IndexOfNodeB = self.nDOFsPerNode * self.idxNodeB
+        # set up the Jacobian in full coordinates
         C_q = np.zeros([3, self.nDOFs])
         C_q[0, 0] = 1 # first AE is g[0] = q[0] - 0
         C_q[1, 1] = 1 # second AE is g[1] = q[1] - 0
-        C_q[2, idxA+1] = N2
-        C_q[2, idxA+2] = N3
-        C_q[2, idxB+1] = N5
-        C_q[2, idxB+2] = N6
+        if self.doNotInterpolateForSlidingBC:
+            if self.alpha >= 0.5:
+                w = 1
+            else:
+                w = 0
+            C_q[2, q1IndexOfNodeA+1] = 1 - w
+            C_q[2, q1IndexOfNodeb+1] = w
+        else: # default setting
+            C_q[2, q1IndexOfNodeA+1] = N2
+            C_q[2, q1IndexOfNodeA+2] = N3
+            C_q[2, q1IndexOfNodeB+1] = N5
+            C_q[2, q1IndexOfNodeB+2] = N6
         # now we reduce the Jacobian
         C_q_Red = C_q @ self.reductionBasis
         return C_q_Red
@@ -494,6 +498,14 @@ class EulerBernulliBeam:
             E[i] -= self.LoadTipFunction(None, i*sensorWritePeriod, None) * q[i, -self.nDOFsPerNode+1] # load potential
         return E
     
+    # class function to get the total strain energy over a simulation run
+    def GetSumOfBeamStrainEnergy(self, q):
+        nTimeSteps = np.shape(q)[0]
+        E = 0
+        for i in range(nTimeSteps):
+            E += (1/2) * (q[i, :] @ self.K @ q[i, :].T) # strain energy
+        return E
+    
     # class function that returns a graphics data list depending on the state of the mbs; to be used within EXUDYN
     # this function is used in the ODE2 object
     def BeamGraphics(self, mbs, itemNumber):
@@ -549,7 +561,7 @@ class EulerBernulliBeam:
 class BeamTemplate:
     def __init__(self, physicsLength=1, physicsMassPerLength=5, physicsBendingStiffness=3e4,
                  physicsAxialStiffness=6e6, nElements=10, widthForDrawing=0.2, color=graphics.color.blue,
-                 positionReference=[0, 0, 0], slidingJointFunction=None, loadTipFunction=None, interpolateBCForSlidingJoint=True):
+                 positionReference=[0, 0, 0], slidingJointFunction=None, loadTipFunction=None, doNotInterpolateForSlidingBC=False):
         self.physicsLength = physicsLength
         self.physicsMassPerLength = physicsMassPerLength
         self.physicsBendingStiffness = physicsBendingStiffness
@@ -560,7 +572,7 @@ class BeamTemplate:
         self.positionReference = positionReference
         self.slidingJointFunction = slidingJointFunction
         self.loadTipFunction = loadTipFunction
-        self.interpolateBCForSlidingJoint = interpolateBCForSlidingJoint
+        self.doNotInterpolateForSlidingBC = doNotInterpolateForSlidingBC
     
     def GetBeamParamatersAsDict(self):
         return vars(self)

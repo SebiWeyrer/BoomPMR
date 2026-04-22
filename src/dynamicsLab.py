@@ -6,7 +6,7 @@
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-import time as tm
+import pickle
 import numpy as np
 import exudyn as exu
 import matplotlib.pyplot as plt
@@ -16,8 +16,12 @@ from exudyn.utilities import *
 from beams import EulerBernulliBeam, BeamTemplate
 from utilities import *
 from pathlib import Path
-from tqdm import tqdm
+from datetime import datetime
 print('EXUDYN says hello with version', exu.config.Version() + '.')
+
+#++++++++++++++++++++++++++++++++++++++++++++++++++
+# decide whether only to load results or produce them
+onlyLoadResults = True
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # setup of 'test' beams with which the experiments are made (and ANCF reference settings)
@@ -26,7 +30,9 @@ nElementsANCF = 12  # from convergence analysis (see later)
 nElementsBeam = 50  # from convergence analysis (see later)
 beamTemplateRubber = BeamTemplate(physicsLength=length,
                                   physicsAxialStiffness=2e7, physicsBendingStiffness=5e4,
-                                  physicsMassPerLength=78, nElements=nElementsBeam)
+                                  physicsMassPerLength=78, nElements=nElementsBeam,
+                                  doNotInterpolateForSlidingBC=False)
+beamIllustration = EulerBernulliBeam(beamTemplate=beamTemplateRubber) # use this beam only for illustration purposes!
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # define time parameters of simulation
@@ -35,26 +41,33 @@ tExperiment = tEnd  # the experiment duration is equal the simulation duration
 h = 1e-3            # [s] step size
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
-# some general settings for plotting
+# some general settings
 textWidth = 5.15
 SetMatplotlibSettings()
 standardColors, labelList, rawDataLabelList, markerList, timeStr, slidingStr = GetStandardValues()
 parentDir = Path.cwd().parent
 figPath = parentDir / 'LaTeX' / 'figures'
-
+resultsFileName = 'results.pkl'
+if not onlyLoadResults:
+    print('Creating empty results file to save results.')
+    data = {'metaInfo': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'results':{}}
+    with open(resultsFileName, 'wb') as f:
+        pickle.dump(data, f)
+else:
+    with open(resultsFileName, 'rb') as f:
+        data = pickle.load(f)
+    print(f"Loading existing results created on {data['metaInfo']}.")
+    
 #%% plot interpolation of y displacement within beam element
 PrintHeadlineToConsole(text='Plot Example Interpolation for Illustration')
-lElement = 1
 q2 = -0.05
 q3 = pi/15
 q5 = 0.1
 q6 = pi/8
 def InterpolationOfYDisplacement(alpha):
-    N2 = 1 - 3*alpha**2 + 2*alpha**3
-    N3 = (alpha - 2*alpha**2 + alpha**3) * lElement
-    N5 = 3*alpha**2 - 2*alpha**3
-    N6 = (-alpha**2 + alpha**3) * lElement
-    return N2*q2 + N3*q3 + N5*q5 + N6*q6
+    N2, N3, N5, N6 = beamIllustration.GetInterpolationCoefficientsForYDisplacement(alpha)
+    return N2 * q2 + N3 * q3 + N5 * q5 + N6 * q6
 alpha = np.linspace(0, 1, 1000)
 yInter = [InterpolationOfYDisplacement(i) for i in alpha]
 figInter, axInter = plt.subplots(1, 1, figsize=[textWidth, 2.5])
@@ -64,11 +77,10 @@ axInter.set_ylabel('interpolated y-displacement in m')
 axInter.set_xlim([-0.1, 1.1])
 axInter.set_ylim([-0.1, 0.15])
 axInter.grid()
-SaveFig(figInter, figPath, 'M_yDisplacementInterpolation', closeFig=False, saveFig=False)
+SaveFig(figInter, figPath, 'M_yDisplacementInterpolation', closeFig=True, saveFig=False)
 
 #%% plot snapshots for three sliding joint positions for illustration (graphical abstract)
 PrintHeadlineToConsole(text='Plot Snapshots for Illustration')
-beamIllustration = EulerBernulliBeam(beamTemplate=beamTemplateRubber) # use this beam for illustration purposes
 eigenmodesLiftedAndMassNormalizedListIllustration = beamIllustration.GetGlobalMassNormalizedEigenmodesListForNumberOfConstrainedNodes(nNodesConstrained=3, nEigenmodes=3)
 figEigenmodes = beamIllustration.PlotEigenmodesSets(eigenmodesLiftedAndMassNormalizedListIllustration, nEigenmodesToPlot=3,
                                                     nodeNumbersConstrainedList=beamIllustration.nodeNumbersConstrainedList,
@@ -165,60 +177,163 @@ PrintHeadlineToConsole(text='Convergence Analysis')
 # set load and slidingJoint function for convergence analysis
 LoadTipFunctionConvergenceAnalysis = LoadTipFunctionEvolved
 SlidingJointFunctionConvergenceAnalysis = SlidingJointFunctionEvolved
+if not onlyLoadResults:
+    # initialize beam (to inherit some data to ANCF beam) and initialize mbs
+    beamConvergenceAnalysis = EulerBernulliBeam(beamTemplate=beamTemplateRubber)
+    SC = exu.SystemContainer()
+    mbs = SC.AddSystem()
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # ANCF elements
+    nElementsANCFList = np.linspace(2, 40, 20, dtype=int) # hard coded!
+    tipDisplacementConvergenceAnalysisANCFList = []
+    for i, nElementsANCF in enumerate(nElementsANCFList):
+        # retreive reference solution via ANCF beam with sliding joint
+        mbs.Reset()
+        nGround = mbs.AddNode(NodePointGround())
+        # this is needed to constrain ANCF beam on the 'left' side
+        mCoordGround = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nGround, coordinate=0,
+                                                          visualization=VMarkerNodeCoordinates(show=False)))
+        sensorOutputVariableTypeConvergenceAnalysisANCFList = [exu.OutputVariableType.Displacement] # here, we only need displacement
+        sDictConvergenceAnalysisANCF = AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunctionConvergenceAnalysis, LoadTipFunctionConvergenceAnalysis, length=length, rhoA=beamConvergenceAnalysis.rhoA, EI=beamConvergenceAnalysis.EI, EA=beamConvergenceAnalysis.EA,
+                                                                                     nElementsANCF=nElementsANCF, mCoordGround=mCoordGround, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeConvergenceAnalysisANCFList,
+                                                                                     beamNodeReferencePositionList=beamConvergenceAnalysis.nodeReferencePositionsList)
+        mbs.Assemble()
+        simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
+        mbs.SolveDynamic(simulationSettings=simulationSettings)
+        outputDictConvergenceAnalysisANCF = GetOutputDictANCFFromSDictANCF(mbs, sDictANCF=sDictConvergenceAnalysisANCF, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeConvergenceAnalysisANCFList)
+        tipDisplacementConvergenceAnalysisANCFList += [outputDictConvergenceAnalysisANCF['OutputVariableType.Displacement'][:, -2]]
+        print('ANCF convergence analysis: Finished', i+1, '/', len(nElementsANCFList), 'analyses.')
+    errorListConvergenceAnalysisANCF = []
+    for tipDisplacementConvergenceAnalysisANCF in tipDisplacementConvergenceAnalysisANCFList[:-1]:
+        errorListConvergenceAnalysisANCF += [AbsError(tipDisplacementConvergenceAnalysisANCF, tipDisplacementConvergenceAnalysisANCFList[-1])]
+    errorListConvergenceAnalysisANCF += [0]
+    AppendResultsToPKLFile(resultsFileName, 'convergenceAnalysis', {'nElementsANCFList': nElementsANCFList,
+                                                                    'errorListConvergenceAnalysisANCF': errorListConvergenceAnalysisANCF})
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # beam elements
+    nElementsBeamList = np.linspace(2, 60, 30, dtype=int) # hard coded!
+    tipDisplacementConvergenceAnalysisBeamList = []
+    for i, nElementsBeam in enumerate(nElementsBeamList):
+        
+        #++++++++++++++++++++++++++++++++++++++++++++++++++
+        # initialize beam
+        mbs.Reset()
+        nGround = mbs.AddNode(NodePointGround())
+        mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
+        beamConvergenceAnalysis = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
+                                                    nElements=nElementsBeam, # OVERWRITE!
+                                                    slidingJointFunction=SlidingJointFunctionConvergenceAnalysis,
+                                                    loadTipFunction=LoadTipFunctionConvergenceAnalysis,
+                                                    interpolateBCForSlidingJoint=True,
+                                                    fixBCWhenSliderNotMoving=False)
+        
+        #++++++++++++++++++++++++++++++++++++++++++++++++++
+        # add beam to mbs
+        sCoordinatesConvergenceAnalysisBeam, sCoordinates_tConvergenceAnalysisBeam = beamConvergenceAnalysis.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
+        
+        #++++++++++++++++++++++++++++++++++++++++++++++++++
+        # simulate dynamically (WYSWYS)
+        mbs.Assemble()
+        simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
+        mbs.SolveDynamic(simulationSettings=simulationSettings)
+        
+        #++++++++++++++++++++++++++++++++++++++++++++++++++
+        # get results
+        _, time, qConvergenceAnalysis, q_tConvergenceAnalysis = beamConvergenceAnalysis.GetTimeAndCoordinates(mbs, sCoordinatesConvergenceAnalysisBeam, sCoordinates_tConvergenceAnalysisBeam)
+        tipDisplacementConvergenceAnalysisBeamList += [qConvergenceAnalysis[:, -2]]
+        print('Beam convergence analysis: Finished', i+1, '/', len(nElementsBeamList), 'analyses.')
+    errorListConvergenceAnalysisBeam = []
+    for tipDisplacementConvergenceAnalysisBeam in tipDisplacementConvergenceAnalysisBeamList[:-1]:
+        errorListConvergenceAnalysisBeam += [AbsError(tipDisplacementConvergenceAnalysisBeam, tipDisplacementConvergenceAnalysisBeamList[-1])]
+    errorListConvergenceAnalysisBeam += [0]
+    AppendResultsToPKLFile(resultsFileName, 'convergenceAnalysis', {'nElementsBeamList': nElementsBeamList,
+                                                                    'errorListConvergenceAnalysisBeam': errorListConvergenceAnalysisBeam})
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # for debugging: plot displacement of tip
+    if False:
+        figDisplacementForDebugging, axDisplacementForDebugging = plt.subplots(1, 1, figsize=[textWidth, 3])
+        for i in range(len(nElementsBeamList)):
+            axDisplacementForDebugging.plot(time, tipDisplacementConvergenceAnalysisANCFList[i], label='ANCF ele: ' + str(nElementsANCFList[i]))
+            axDisplacementForDebugging.plot(time, tipDisplacementConvergenceAnalysisBeamList[i], label='Beam ele: ' + str(nElementsBeamList[i]))
+        axDisplacementForDebugging.legend()
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
+# plot the convergence analysis
+resultsDictConvergenceAnalysis = GetResultsDictFromPKLFile(resultsFileName, 'convergenceAnalysis')
+nElementsANCFList = resultsDictConvergenceAnalysis['nElementsANCFList']
+nElementsBeamList = resultsDictConvergenceAnalysis['nElementsBeamList']
+errorListConvergenceAnalysisANCF = resultsDictConvergenceAnalysis['errorListConvergenceAnalysisANCF']
+errorListConvergenceAnalysisBeam = resultsDictConvergenceAnalysis['errorListConvergenceAnalysisBeam']
+figConvergenceAnalysisANCF, axConvergenceAnalysisANCF = plt.subplots(1, 1, figsize=[textWidth, 3])
+axConvergenceAnalysisANCF.plot(nElementsANCFList[:-1], errorListConvergenceAnalysisANCF[:-1], '-o', label=labelList[0])
+axConvergenceAnalysisANCF.plot(nElementsBeamList[:-1], errorListConvergenceAnalysisBeam[:-1], '-*', label=labelList[1])
+axConvergenceAnalysisANCF.set_yscale('log')
+axConvergenceAnalysisANCF.grid()
+axConvergenceAnalysisANCF.legend()
+axConvergenceAnalysisANCF.set_xlabel('number of elements')
+axConvergenceAnalysisANCF.set_ylabel('abs. error tip y-displacement in m')
+SaveFig(figConvergenceAnalysisANCF, figPath, 'R_convergenceAnalysis', closeFig=False)
+
+#%% test the importance of global modes by taking them away one after each other
+PrintHeadlineToConsole(text='Global Mode Number Test')
+# initial guess
+nSnapshots = 6
+nEigenmodesPerSnapshot = 6
+nGlobalModes = nSnapshots * nEigenmodesPerSnapshot # max number
 # initialize beam (to inherit some data to ANCF beam) and initialize mbs
-beamConvergenceAnalysis = EulerBernulliBeam(beamTemplate=beamTemplateRubber)
+beamGlobalModeImportance = EulerBernulliBeam(beamTemplate=beamTemplateRubber)
 SC = exu.SystemContainer()
 mbs = SC.AddSystem()
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
-# ANCF elements
-nElementsANCFList = np.linspace(2, 20, 10, dtype=int) # hard coded!
-tipDisplacementConvergenceAnalysisANCFList = []
-for i, nElementsANCF in enumerate(nElementsANCFList):
-    # retreive reference solution via ANCF beam with sliding joint
-    mbs.Reset()
-    nGround = mbs.AddNode(NodePointGround())
-    # this is needed to constrain ANCF beam on the 'left' side
-    mCoordGround = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nGround, coordinate=0,
-                                                      visualization=VMarkerNodeCoordinates(show=False)))
-    sensorOutputVariableTypeConvergenceAnalysisANCFList = [exu.OutputVariableType.Displacement] # here, we only need displacement
-    sDictConvergenceAnalysisANCF = AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunctionConvergenceAnalysis, LoadTipFunctionConvergenceAnalysis, length=length, rhoA=beamConvergenceAnalysis.rhoA, EI=beamConvergenceAnalysis.EI, EA=beamConvergenceAnalysis.EA,
-                                                                                 nElementsANCF=nElementsANCF, mCoordGround=mCoordGround, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeConvergenceAnalysisANCFList,
-                                                                                 beamNodeReferencePositionList=beamConvergenceAnalysis.nodeReferencePositionsList)
-    mbs.Assemble()
-    simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
-    mbs.SolveDynamic(simulationSettings=simulationSettings)
-    outputDictConvergenceAnalysisANCF = GetOutputDictANCFFromSDictANCF(mbs, sDictANCF=sDictConvergenceAnalysisANCF, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeConvergenceAnalysisANCFList)
-    tipDisplacementConvergenceAnalysisANCFList += [outputDictConvergenceAnalysisANCF['OutputVariableType.Displacement'][:, -2]]
-    print('ANCF convergence analysis: Finished', i+1, '/', len(nElementsANCFList), 'analyses.')
-errorListConvergenceAnalysisANCF = []
-for tipDisplacementConvergenceAnalysisANCF in tipDisplacementConvergenceAnalysisANCFList[:-1]:
-    errorListConvergenceAnalysisANCF += [AbsError(tipDisplacementConvergenceAnalysisANCF, tipDisplacementConvergenceAnalysisANCFList[-1])]
-errorListConvergenceAnalysisANCF += [0]
+# retreive reference solution via ANCF beam with sliding joint
+nGround = mbs.AddNode(NodePointGround())
+# this is needed to constrain ANCF beam on the 'left' side
+mCoordGround = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nGround, coordinate=0,
+                                                  visualization=VMarkerNodeCoordinates(show=False)))
+sensorOutputVariableTypeGlobalModeImportanceANCFList = [exu.OutputVariableType.Displacement] # here, we only need displacement
+sDictGlobalModeImportanceANCF = AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunctionEvolved, LoadTipFunctionEvolved, length=length, rhoA=beamGlobalModeImportance.rhoA, EI=beamGlobalModeImportance.EI, EA=beamGlobalModeImportance.EA,
+                                                                              nElementsANCF=nElementsANCF, mCoordGround=mCoordGround, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeGlobalModeImportanceANCFList,
+                                                                              beamNodeReferencePositionList=beamGlobalModeImportance.nodeReferencePositionsList)
+mbs.Assemble()
+simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
+mbs.SolveDynamic(simulationSettings=simulationSettings)
+outputDictGlobalModeImportanceANCF = GetOutputDictANCFFromSDictANCF(mbs, sDictANCF=sDictGlobalModeImportanceANCF, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeGlobalModeImportanceANCFList)
+displacementGlobalModeImportanceANCF = outputDictGlobalModeImportanceANCF['OutputVariableType.Displacement']
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
-# beam elements
-nElementsBeamList = np.linspace(2, 20, 10, dtype=int) # hard coded!
-tipDisplacementConvergenceAnalysisBeamList = []
-for i, nElementsBeam in enumerate(nElementsBeamList):
-    
+# get snapshots of beam (offline to save time) - we cannot use the wrapper since the wrapper already reduces
+eigenmodesLiftedAndMassNormalizedList = beamGlobalModeImportance.GetGlobalMassNormalizedEigenmodesListForNumberOfConstrainedNodes(nNodesConstrained=nSnapshots,
+                                                                                                                                                             nEigenmodes=nEigenmodesPerSnapshot,
+                                                                                                                                                             verbose=True)
+globalReductionBasis = beamGlobalModeImportance.GetGlobalReductionBasisUsingEigenmodesList(eigenmodesList=eigenmodesLiftedAndMassNormalizedList,
+                                                                                              nGlobalModes=nGlobalModes, verbose=True)
+
+#++++++++++++++++++++++++++++++++++++++++++++++++++
+# iterate over the global modes and remove them successively
+errorList = []
+modesUsedList = []
+for i in range(nGlobalModes-2):
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # initialize beam
     mbs.Reset()
     nGround = mbs.AddNode(NodePointGround())
     mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
-    beamConvergenceAnalysis = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
-                                                nElements=nElementsBeam, # OVERWRITE!
-                                                slidingJointFunction=SlidingJointFunctionConvergenceAnalysis,
-                                                loadTipFunction=LoadTipFunctionConvergenceAnalysis,
-                                                interpolateBCForSlidingJoint=True,
-                                                fixBCWhenSliderNotMoving=False)
+    beamGlobalModeImportance = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
+                                                    slidingJointFunction=SlidingJointFunctionEvolved,
+                                                    loadTipFunction=LoadTipFunctionEvolved,
+                                                    interpolateBCForSlidingJoint=True,
+                                                    fixBCWhenSliderNotMoving=False)
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
-    # add beam to mbs
-    sCoordinatesConvergenceAnalysisBeam, sCoordinates_tConvergenceAnalysisBeam = beamConvergenceAnalysis.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
+    # GLOBALLY reduced beam and add it
+    nGlobalModesUsed = nGlobalModes - i
+    modesUsedList += [nGlobalModesUsed]
+    beamGlobalModeImportance.ReduceBeam(reductionBasis=globalReductionBasis[:, 0:nGlobalModesUsed])
+    sCoordinatesGlobalModeImportancePMR, sCoordinates_tGlobalModeImportancePMR = beamGlobalModeImportance.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # simulate dynamically (WYSWYS)
@@ -228,119 +343,21 @@ for i, nElementsBeam in enumerate(nElementsBeamList):
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # get results
-    _, time, qConvergenceAnalysis, q_tConvergenceAnalysis = beamConvergenceAnalysis.GetTimeAndCoordinates(mbs, sCoordinatesConvergenceAnalysisBeam, sCoordinates_tConvergenceAnalysisBeam)
-    tipDisplacementConvergenceAnalysisBeamList += [qConvergenceAnalysis[:, -2]]
-    print('Beam convergence analysis: Finished', i+1, '/', len(nElementsBeamList), 'analyses.')
-errorListConvergenceAnalysisBeam = []
-for tipDisplacementConvergenceAnalysisBeam in tipDisplacementConvergenceAnalysisBeamList[:-1]:
-    errorListConvergenceAnalysisBeam += [AbsError(tipDisplacementConvergenceAnalysisBeam, tipDisplacementConvergenceAnalysisBeamList[-1])]
-errorListConvergenceAnalysisBeam += [0]
+    _, time, qGlobalModeImportancePMR, q_tGlobalModeImportancePMR = beamGlobalModeImportance.GetTimeAndCoordinates(mbs, sCoordinatesGlobalModeImportancePMR, sCoordinates_tGlobalModeImportancePMR)
+    errorList += [AbsError(qGlobalModeImportancePMR[:, 1::beamGlobalModeImportance.nDOFsPerNode], displacementGlobalModeImportanceANCF[:, 1::3])]
+    print('Global mode number test: Finished', i+1, '/', nGlobalModes-2, 'analyses.')
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
-# for debugging: plot displacement of tip
-if False:
-    figDisplacementForDebugging, axDisplacementForDebugging = plt.subplots(1, 1, figsize=[textWidth, 3])
-    for i in range(len(nElementsBeamList)):
-        axDisplacementForDebugging.plot(time, tipDisplacementConvergenceAnalysisANCFList[i], label='ANCF ele: ' + str(nElementsANCFList[i]))
-        axDisplacementForDebugging.plot(time, tipDisplacementConvergenceAnalysisBeamList[i], label='Beam ele: ' + str(nElementsBeamList[i]))
-    axDisplacementForDebugging.legend()
+# plot the errors
+figGlobalModesImportance, axGlobalModesImportance = plt.subplots(1, 1, figsize=[textWidth, 3])
+x = np.arange(len(modesUsedList))
+axGlobalModesImportance.bar(x, errorList)
+axGlobalModesImportance.set_xticks(x, modesUsedList)
+axGlobalModesImportance.set_xlabel('number of used modes')
+axGlobalModesImportance.set_ylabel('abs. error y-displacement in m')
+axGlobalModesImportance.grid()
 
-#++++++++++++++++++++++++++++++++++++++++++++++++++
-# plot the convergence analysis
-figConvergenceAnalysisANCF, axConvergenceAnalysisANCF = plt.subplots(1, 1, figsize=[textWidth, 3])
-axConvergenceAnalysisANCF.plot(nElementsANCFList[:-1], errorListConvergenceAnalysisANCF[:-1], '-o', label=labelList[0])
-axConvergenceAnalysisANCF.plot(nElementsBeamList[:-1], errorListConvergenceAnalysisBeam[:-1], '-*', label=labelList[1])
-axConvergenceAnalysisANCF.grid()
-axConvergenceAnalysisANCF.legend()
-axConvergenceAnalysisANCF.set_xlabel('number of elements')
-axConvergenceAnalysisANCF.set_ylabel('abs. error tip y-displacement in m')
-SaveFig(figConvergenceAnalysisANCF, figPath, 'A_convergenceAnalysis', closeFig=False)
-
-#%% test the importance of global modes by taking them away one after each other
-# PrintHeadlineToConsole(text='Global Mode Number Test')
-# # initial guess
-# nSnapshots = 6
-# nEigenmodesPerSnapshot = 6
-# nGlobalModes = nSnapshots * nEigenmodesPerSnapshot # max number
-# # initialize beam (to inherit some data to ANCF beam) and initialize mbs
-# beamGlobalModeImportancePMR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
-#                                                 slidingJointFunction=SlidingJointFunctionEvolved,
-#                                                 loadTipFunction=LoadTipFunctionEvolved,
-#                                                 interpolateBCForSlidingJoint=True,
-#                                                 fixBCWhenSliderNotMoving=False)
-# SC = exu.SystemContainer()
-# mbs = SC.AddSystem()
-
-# #++++++++++++++++++++++++++++++++++++++++++++++++++
-# # retreive reference solution via ANCF beam with sliding joint
-# nGround = mbs.AddNode(NodePointGround())
-# # this is needed to constrain ANCF beam on the 'left' side
-# mCoordGround = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nGround, coordinate=0,
-#                                                   visualization=VMarkerNodeCoordinates(show=False)))
-# sensorOutputVariableTypeGlobalModeImportanceANCFList = [exu.OutputVariableType.Displacement] # here, we only need displacement
-# sDictGlobalModeImportanceANCF = AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunctionEvolved, LoadTipFunctionEvolved, length=length, rhoA=beamGlobalModeImportancePMR.rhoA, EI=beamGlobalModeImportancePMR.EI, EA=beamGlobalModeImportancePMR.EA,
-#                                                                               nElementsANCF=nElementsANCF, mCoordGround=mCoordGround, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeGlobalModeImportanceANCFList,
-#                                                                               beamNodeReferencePositionList=beamGlobalModeImportancePMR.nodeReferencePositionsList)
-# mbs.Assemble()
-# simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
-# mbs.SolveDynamic(simulationSettings=simulationSettings)
-# outputDictGlobalModeImportanceANCF = GetOutputDictANCFFromSDictANCF(mbs, sDictANCF=sDictGlobalModeImportanceANCF, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeGlobalModeImportanceANCFList)
-# displacementGlobalModeImportanceANCF = outputDictGlobalModeImportanceANCF['OutputVariableType.Displacement']
-
-# #++++++++++++++++++++++++++++++++++++++++++++++++++
-# # get snapshots of beam (offline to save time) - we cannot use the wrapper since the wrapper already reduces
-# eigenmodesLiftedAndMassNormalizedList = beamGlobalModeImportancePMR.GetGlobalMassNormalizedEigenmodesListForNumberOfConstrainedNodes(nNodesConstrained=nSnapshots,
-#                                                                                                                                                              nEigenmodes=nEigenmodesPerSnapshot,
-#                                                                                                                                                              verbose=True)
-# globalReductionBasis = beamGlobalModeImportancePMR.GetGlobalReductionBasisUsingEigenmodesList(eigenmodesList=eigenmodesLiftedAndMassNormalizedList,
-#                                                                                               nGlobalModes=nGlobalModes, verbose=True)
-
-# #++++++++++++++++++++++++++++++++++++++++++++++++++
-# # iterate over the global modes and remove them successively
-# errorList = []
-# modesUsedList = []
-# for i in range(nGlobalModes-2):
-#     #++++++++++++++++++++++++++++++++++++++++++++++++++
-#     # initialize beam
-#     mbs.Reset()
-#     nGround = mbs.AddNode(NodePointGround())
-#     mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
-#     beamGlobalModeImportancePMR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
-#                                                     slidingJointFunction=SlidingJointFunctionEvolved,
-#                                                     loadTipFunction=LoadTipFunctionEvolved,
-#                                                     interpolateBCForSlidingJoint=True,
-#                                                     fixBCWhenSliderNotMoving=False)
-    
-#     #++++++++++++++++++++++++++++++++++++++++++++++++++
-#     # GLOBALLY reduced beam and add it
-#     nGlobalModesUsed = nGlobalModes - i
-#     modesUsedList += [nGlobalModesUsed]
-#     beamGlobalModeImportancePMR.ReduceBeam(reductionBasis=globalReductionBasis[:, 0:nGlobalModesUsed])
-#     sCoordinatesGlobalModeImportancePMR, sCoordinates_tGlobalModeImportancePMR = beamGlobalModeImportancePMR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
-    
-#     #++++++++++++++++++++++++++++++++++++++++++++++++++
-#     # simulate dynamically (WYSWYS)
-#     mbs.Assemble()
-#     simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
-#     mbs.SolveDynamic(simulationSettings=simulationSettings)
-    
-#     #++++++++++++++++++++++++++++++++++++++++++++++++++
-#     # get results
-#     _, time, qGlobalModeImportancePMR, q_tGlobalModeImportancePMR = beamGlobalModeImportancePMR.GetTimeAndCoordinates(mbs, sCoordinatesGlobalModeImportancePMR, sCoordinates_tGlobalModeImportancePMR)
-#     errorList += [AbsError(qGlobalModeImportancePMR[:, 1::beamGlobalModeImportancePMR.nDOFsPerNode], displacementGlobalModeImportanceANCF[:, 1::3])]
-#     print('Global mode number test: Finished', i+1, '/', nGlobalModes-2, 'analyses.')
-
-# #++++++++++++++++++++++++++++++++++++++++++++++++++
-# # plot the errors
-# figGlobalModesImportance, axGlobalModesImportance = plt.subplots(1, 1, figsize=[textWidth, 3])
-# x = np.arange(len(modesUsedList))
-# axGlobalModesImportance.bar(x, errorList)
-# axGlobalModesImportance.set_xticks(x, modesUsedList)
-# axGlobalModesImportance.set_xlabel('number of used modes')
-# axGlobalModesImportance.set_ylabel('abs. error y-displacement in m')
-# axGlobalModesImportance.grid()
-
-# #%% 
+#%% 
 # # using the estimated amount of global modes, we try combinations
 # nGlobalModes = 
 # nSnapshotsList = []
