@@ -181,19 +181,24 @@ def AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunction, Loa
     # the mass does not influence the solution: coordinates constraint (algebraically) moves it further ...
     # also add coordinates constraint
     # TODO: Ask Johannes: Maybe in this case there is a more convenient way to get the moving marker without adding a mass point 
-    oMP = mbs.CreateMassPoint(physicsMass=1, referencePosition=[0, yReferenceOffsetANCF, 0],
-                              initialDisplacement=[SlidingJointFunction(0), 0, 0], color=graphics.color.red)
-    oCCMP = mbs.CreateCoordinateConstraint(bodyNumbers=[None, oMP], coordinates=[None, 0], show=False)
-    mbs.CreateCoordinateConstraint(bodyNumbers=[None, oMP], coordinates=[None, 1], show=False)
+    # oMP = mbs.CreateMassPoint(physicsMass=1, referencePosition=[0, yReferenceOffsetANCF, 0],
+    #                           initialDisplacement=[SlidingJointFunction(0), 0, 0], color=graphics.color.red)
+    # oCCMP = mbs.CreateCoordinateConstraint(bodyNumbers=[None, oMP], coordinates=[None, 0], show=False)
+    # mbs.CreateCoordinateConstraint(bodyNumbers=[None, oMP], coordinates=[None, 1], show=False)
+    oGroundAsSlider = mbs.CreateGround(referencePosition=[0, yReferenceOffsetANCF, 0])
     # here, we just use the sliding joint function in the PreSetpUserFunction
+    # def PreStepUserFunction(mbs, t):
+    #     mbs.SetObjectParameter(oCCMP, 'offset', SlidingJointFunction(t))
+    #     return True
     def PreStepUserFunction(mbs, t):
-        mbs.SetObjectParameter(oCCMP, 'offset', SlidingJointFunction(t))
+        mbs.SetObjectParameter(oGroundAsSlider, 'referencePosition', [SlidingJointFunction(t), yReferenceOffsetANCF, 0])
         return True
     mbs.SetPreStepUserFunction(PreStepUserFunction)
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # add marker to mass point and add sliding joint
-    mMP = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oMP))
+    # mMP = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oMP))
+    mMP = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oGroundAsSlider))
     # add sliding joint to beam
     offsetList = np.arange(nElementsANCF) * (length/nElementsANCF)
     nGenericJSliding = mbs.AddNode(NodeGenericData(numberOfDataCoordinates=2, initialCoordinates=[0, 0]))
