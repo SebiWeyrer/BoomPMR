@@ -487,6 +487,17 @@ class EulerBernulliBeam:
             print('Computation time: ' + str(computationTime) + 's.')
         return psiGlobal
     
+    # class function to get info about 'time' and the coordinates q and q_t with given sensor numbers
+    def GetTimeAndCoordinates(self, mbs, sCoordinates, sCoordinates_t):
+        time = mbs.GetSensorStoredData(sensorNumber=sCoordinates)[:, 0]
+        nTimeSteps = np.size(time)
+        q = np.zeros([nTimeSteps, self.nDOFs])
+        q_t = np.zeros([nTimeSteps, self.nDOFs])
+        for i in range(nTimeSteps): # for each timestep, project back
+            q[i, :] = self.reductionBasis @ mbs.GetSensorStoredData(sensorNumber=sCoordinates)[i, 1:]
+            q_t[i, :] = self.reductionBasis @ mbs.GetSensorStoredData(sensorNumber=sCoordinates_t)[i, 1:]
+        return nTimeSteps, time, q, q_t
+    
     # class function that computes the energy (kinetic and strain and potential) of the system over time (given time series of minimal coordinates)
     def GetKineticAndStrainAndPotentialBeamEnergy(self, q, q_t, sensorWritePeriod=0):
         nTimeSteps = np.shape(q)[0]
@@ -543,17 +554,6 @@ class EulerBernulliBeam:
         globalReductionBasis = self.GetGlobalReductionBasisUsingEigenmodesList(eigenmodesList=eigenmodesLiftedAndMassNormalizedListPMR,
                                                                                  nGlobalModes=nGlobalModes, verbose=verbose)
         self.ReduceBeam(reductionBasis=globalReductionBasis)
-    
-    # class function to get info about 'time' and the coordinates q and q_t with given sensor numbers
-    def GetTimeAndCoordinates(self, mbs, sCoordinates, sCoordinates_t):
-        time = mbs.GetSensorStoredData(sensorNumber=sCoordinates)[:, 0]
-        nTimeSteps = np.size(time)
-        q = np.zeros([nTimeSteps, self.nDOFs])
-        q_t = np.zeros([nTimeSteps, self.nDOFs])
-        for i in range(nTimeSteps): # for each timestep, project back
-            q[i, :] = self.reductionBasis @ mbs.GetSensorStoredData(sensorNumber=sCoordinates)[i, 1:]
-            q_t[i, :] = self.reductionBasis @ mbs.GetSensorStoredData(sensorNumber=sCoordinates_t)[i, 1:]
-        return nTimeSteps, time, q, q_t
 
 # class that is used as a template for setting up a beam
 # this class just holds the parameters that are needed for setting up the beam

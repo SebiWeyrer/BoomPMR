@@ -2,7 +2,7 @@
 #
 # Details:  Utilities for the 'BoomPMR'-Project.
 # Author:   Sebastian Weyrer
-# Date:     2026-04-22
+# Date:     2026-04-23
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -14,18 +14,20 @@ import matplotlib as mpl
 import matplotlib.font_manager as font_manager
 import matplotlib.pyplot as plt
 
+# helper functions for some standard colors / legends
 def GetStandardValues(nGlobalModes=None):
-    standardColors = [graphics.color.blue, graphics.color.orange, [0.172549, 0.627451, 0.172549, 1.0], graphics.color.red] # colors of beams (also used for plots)
+    standardColors = [[0.1216, 0.4667, 0.7059, 1], [1.0, 0.4980, 0.0549, 1], [0.172549, 0.627451, 0.172549, 1.0], graphics.color.red] # colors of beams (also used for plots)
     if nGlobalModes is not None:
-        labelList = ['ANCF', 'non-reduced (with AE)', 'globally reduced (r=' + str(nGlobalModes) + ') (with AE)', 'non-reduced (minimal coordiantes)']
+        labelList = ['ANCF', 'EB, non-reduced (with AE)', 'EB, globally reduced (r=' + str(nGlobalModes) + ') (with AE)', 'non-reduced (minimal coordiantes)']
     else:
-        labelList = ['ANCF', 'non-reduced (with AE)', 'globally reduced (with AE)', 'non-reduced (minimal coordiantes)']
+        labelList = ['ANCF', 'EB, non-reduced (with AE)', 'EB, globally reduced (with AE)', 'non-reduced (minimal coordiantes)']
     rawDataLabelList = ['displ. x in m', 'displ. y in m', 'rot in rad']
     markerList = ['-o', '-*', '-p', '-+']
     timeStr = 'time in s'
     slidingStr = 'sliding phase'
     return standardColors, labelList, rawDataLabelList, markerList, timeStr, slidingStr
 
+# helper function to save a figure
 def SaveFig(figure, path, name, closeFig=False, saveFig=True):
     if saveFig:
         figure.savefig(path / f'{name}.pdf')
@@ -33,6 +35,7 @@ def SaveFig(figure, path, name, closeFig=False, saveFig=True):
     if closeFig:
         plt.close('all')
 
+# helper function for nice plotting layout for paper
 def SetMatplotlibSettings():
     fsize = 9
     tsize = 8
@@ -65,6 +68,7 @@ def SetMatplotlibSettings():
     plt.rcParams['figure.autolayout'] = True
     plt.rcParams['figure.dpi'] = 150
 
+# helper function for headline in console
 def PrintHeadlineToConsole(length=80, text=None):
         if not text:
             print('+' * length)
@@ -77,7 +81,8 @@ def PrintHeadlineToConsole(length=80, text=None):
         left = remaining // 2
         right = remaining - left
         print('+' * left + middle + '+' * right)
-        
+
+# helper function to get an EXUDYN's graphics data list for a constraint symbol
 def GetGraphicsOfConstraint(position=[0, 0, 0]):
     constraintWidth = 0.3
     constraintHeight = 0.3
@@ -90,11 +95,13 @@ def GetGraphicsOfConstraint(position=[0, 0, 0]):
     graphicsData += [graphics.Sphere(point=[position[0], position[1], position[2]], radius=sphereRadius, color=graphics.color.black)]
     return graphicsData
 
+# helper function to get an EXUDYN's graphics data list for drawing three x 2 constraints (one is sliding) and basis 
 def GetGraphicsOfConstraintsAndAddBasis(mbs, objectNumber, SlidingJointFunction,
                                         zOffsetForDrawing=0.01, yReferenceOffsetANCF=0, yReferenceOffsetBeamNR=0, yReferenceOffsetBeamPMR=0,
                                         xTextOffset=0, yTextOffset=0):
     graphicsData = []
     t = mbs.systemData.GetTime(exu.ConfigurationType.Visualization)
+    _, labelList, _, _, _, _ = GetStandardValues()
     # show constraints
     graphicsData += GetGraphicsOfConstraint(position=[0, yReferenceOffsetANCF, zOffsetForDrawing])
     graphicsData += GetGraphicsOfConstraint(position=[SlidingJointFunction(t), yReferenceOffsetANCF, zOffsetForDrawing])
@@ -111,11 +118,11 @@ def GetGraphicsOfConstraintsAndAddBasis(mbs, objectNumber, SlidingJointFunction,
     # if addSpecificallyReducedBeam:
     #     graphicsData += [graphics.Basis(origin=[0, yReferenceOffsetBeamSR, 0], length=0.5)]
     graphicsData += [graphics.Basis(origin=[0, yReferenceOffsetBeamPMR, 0], length=0.5)]
-    graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetANCF+yTextOffset, 0], text='ANCF')]
-    graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetBeamNR+yTextOffset, 0], text='non-reduced')]
+    graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetANCF+yTextOffset, 0], text=labelList[0], fontSize=18)]
+    graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetBeamNR+yTextOffset, 0], text=labelList[1], fontSize=18)]
     # if addSpecificallyReducedBeam:
     #     graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetBeamSR+yTextOffset, 0], text='spec. reduced')]
-    graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetBeamPMR+yTextOffset, 0], text='globally reduced (ours)')]
+    graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetBeamPMR+yTextOffset, 0], text=labelList[2], fontSize=18)]
     return graphicsData
 
 # helper function that adds ANCF 2D Beam with sliding joint and requested sensors to a mbs
@@ -204,6 +211,7 @@ def AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunction, Loa
                                                    classicalFormulation=False))
     return sDictANCF
 
+# helper function to get output variables as dict out of a dict of ANCF sensors
 def GetOutputDictANCFFromSDictANCF(mbs, sDictANCF={}, sensorOutputVariableTypeANCFList=[], verbose=False):
     sOrderedDictANCF = {}
     for ele in sDictANCF:
@@ -225,6 +233,7 @@ def GetOutputDictANCFFromSDictANCF(mbs, sDictANCF={}, sensorOutputVariableTypeAN
         print('For the ANCF element, a total of', nSensorsANCF, 'sensors are added.')
     return outputDictANCF
 
+# helper function to get the Hamiltonian of an ANCF beam using the dict with the output variables
 def GetKineticAndStrainAndPotentialANCFEnergyFromOutputDictANCF(outputDictANCF, nTimeSteps=100, length=1, rhoA=40,
                                                                 LoadTipFunction=None, nBeamElements=40, sensorsWritePeriod=1e-2):
     EANCF = np.zeros(nTimeSteps)
@@ -256,7 +265,7 @@ def GetKineticAndStrainAndPotentialANCFEnergyFromOutputDictANCF(outputDictANCF, 
         EANCF[i] -= outputDictANCF['OutputVariableType.Displacement'][i, -2] * LoadTipFunction(None, i*sensorsWritePeriod, None)
     return EANCF
 
-# helping fuction to compute Simple Moving Average (SMA)
+# helper fuction to compute Simple Moving Average (SMA)
 def SMA(time, data, window, SMAMode):
     SMA = np.convolve(data, np.ones(window) / window, mode=SMAMode)
     if SMAMode == 'valid':
@@ -265,19 +274,20 @@ def SMA(time, data, window, SMAMode):
         timeSMA = time # do not trim
     return timeSMA, SMA
 
-# helping function for the Normalized Root-Mean-Square Error (NRMSE) of a scalar signal
+# helper function for the Normalized Root-Mean-Square Error (NRMSE) of a scalar signal
 def NRMSE(signal, reference):
     rmse = np.sqrt(np.mean((signal - reference)**2))
     norm = np.max(reference) - np.min(reference)
     return rmse / norm
 
+# helper function to get the Root Mean Square (RMS) of a signal
 def RMSE(signal, reference):
     return np.sqrt(np.mean((signal - reference)**2))
 
 def AbsError(signal, reference):
     return np.linalg.norm(signal-reference)
 
-# helping function for the Normalized Root-Mean-Square Error (NRMSE) of a vector signal
+# helper function for the Normalized Root-Mean-Square Error (NRMSE) of a vector signal
 def NRMSEVector(signal, reference):
     # signal, reference: [nTimeSteps, nNodes}
     norm = np.max(reference, axis=0) - np.min(reference, axis=0) # range over time, per node
@@ -285,6 +295,7 @@ def NRMSEVector(signal, reference):
     mask = norm > 1e-10
     return np.mean(rmse[mask] / norm[mask])
 
+# helper function to get some standard simulation and visualization settings within EXUDYN
 def GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False):
     simulationSettings = exu.SimulationSettings()
     visualizationSettings = exu.VisualizationSettings()
@@ -299,6 +310,7 @@ def GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False
         simulationSettings.solutionSettings.recordImagesInterval = h*20
     return simulationSettings
 
+# helper function to add results to results file
 def AppendResultsToPKLFile(fileName, key, newResultsDict):
     with open(fileName, 'rb') as f:
         data = pickle.load(f)
@@ -309,6 +321,7 @@ def AppendResultsToPKLFile(fileName, key, newResultsDict):
     with open(fileName, 'wb') as f:
         pickle.dump(data, f)
 
+# helper function to get results out of helper file
 def GetResultsDictFromPKLFile(fileName, key):
     with open(fileName, 'rb') as f:
         data = pickle.load(f)
