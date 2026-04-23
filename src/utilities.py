@@ -118,19 +118,24 @@ def GetGraphicsOfConstraintsAndAddBasis(mbs, objectNumber, SlidingJointFunction,
     graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetBeamPMR+yTextOffset, 0], text='globally reduced (ours)')]
     return graphicsData
 
+# helper function that adds ANCF 2D Beam with sliding joint and requested sensors to a mbs
+# this function is created to avoid code duplication, as different ANCF beams are added for different tests
 def AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunction, LoadTipFunction, length=1, rhoA=50, EI=1e6, EA=1e6,
                                                   nElementsANCF=5, yReferenceOffsetANCF=0, width=0.5, show=False,
                                                   mCoordGround=None, sensorOutputVariableTypeANCFList=[], beamNodeReferencePositionList=None):
     standardColors, _, _, _, _, _ = GetStandardValues()
-    # begin with setup of ANCF beam
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # setup of ANCF beam (S...Start of element, E...End of element)
     elementLengthANCF = length/nElementsANCF
     nSANCF = mbs.AddNode(NodePoint2DSlope1(referenceCoordinates=[0, yReferenceOffsetANCF, 1, 0],
                                            initialCoordinates=[0]*4, initialVelocities=[0]*4))
+    # add two markers here to (later) constrain the position of the beginning of the ANCF beam
     mSANCFX = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nSANCF, coordinate=0))
     mSANCFY = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nSANCF, coordinate=1))
     mANCFList = [] # list of body markers to ANCF beam for sliding joint
     xPositionsOfSensors = beamNodeReferencePositionList # the sensors of the ANCF beam should be at the nodes of the other beam
-    sDictANCF = {}
+    sDictANCF = {} # special dict to add sensors
     for i in range(nElementsANCF):
         nEANCF = mbs.AddNode(NodePoint2DSlope1(referenceCoordinates=[(elementLengthANCF*(i+1)), yReferenceOffsetANCF, 1, 0],
                                                initialCoordinates=[0]*4, initialVelocities=[0]*4))
@@ -142,6 +147,9 @@ def AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunction, Loa
                                                 visualization=VObjectALEANCFCable2D(drawHeight=width, color=standardColors[0], show=show)))
         mANCFList += [mbs.AddMarker(MarkerBodyCable2DCoordinates(bodyNumber=oANCF))]
         nSANCF = nEANCF # start is end of last element
+        
+        #++++++++++++++++++++++++++++++++++++++++++++++++++
+        # special logic to add required sensors acc. to sensorOutputVariableTypeANCFList
         # compute the local position of the sensors and add them
         if i == nElementsANCF - 1:
             globalXPositionOfSensorList = xPositionsOfSensors[(xPositionsOfSensors >= elementLengthANCF*i) & (xPositionsOfSensors <= elementLengthANCF*(i+1))]
@@ -157,12 +165,22 @@ def AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunction, Loa
                 sDictLocalPosition[str(localXPosition)] = mbs.AddSensor(SensorBody(bodyNumber=oANCF, localPosition=[localXPosition, 0, 0],
                                                                                    outputVariableType=outputVariableType,
                                                                                    storeInternal=True))
-    # add marker to apply load
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # add marker to apply load (only in y-direction), apply load
     mTipANCF = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nEANCF, coordinate=1))
+    mbs.AddLoad(LoadCoordinate(markerNumber=mTipANCF, loadUserFunction=LoadTipFunction))
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
     # now constrain the beginning of ANCF beam (we can not use create function since we do not constrain object but specific node)
     mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordGround, mSANCFX], visualization=VObjectConnectorCoordinate(show=False)))
     mbs.AddObject(CoordinateConstraint(markerNumbers=[mCoordGround, mSANCFY], visualization=VObjectConnectorCoordinate(show=False)))
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
     # add mass point that is moved in order to make sliding joint (initialize acc. to sliding joint function)
+    # acc. to https://exudyn.readthedocs.io/en/latest/docs/RST/items/ObjectJointSliding2D.html#objectjointsliding2d we need a point mass / rigid body marker here
+    # the mass does not influence the solution: coordinates constraint (algebraically) moves it further ...
+    # also add coordinates constraint
+    # TODO: Ask Johannes: Maybe in this case there is a more convenient way to get the moving marker without adding a mass point 
     oMP = mbs.CreateMassPoint(physicsMass=1, referencePosition=[0, yReferenceOffsetANCF, 0],
                               initialDisplacement=[SlidingJointFunction(0), 0, 0], color=graphics.color.red)
     oCCMP = mbs.CreateCoordinateConstraint(bodyNumbers=[None, oMP], coordinates=[None, 0], show=False)
@@ -172,6 +190,9 @@ def AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunction, Loa
         mbs.SetObjectParameter(oCCMP, 'offset', SlidingJointFunction(t))
         return True
     mbs.SetPreStepUserFunction(PreStepUserFunction)
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # add marker to mass point and add sliding joint
     mMP = mbs.AddMarker(MarkerBodyPosition(bodyNumber=oMP))
     # add sliding joint to beam
     offsetList = np.arange(nElementsANCF) * (length/nElementsANCF)
@@ -181,7 +202,6 @@ def AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunction, Loa
                                                    slidingMarkerOffsets=offsetList,
                                                    nodeNumber=nGenericJSliding,
                                                    classicalFormulation=False))
-    mbs.AddLoad(LoadCoordinate(markerNumber=mTipANCF, loadUserFunction=LoadTipFunction))
     return sDictANCF
 
 def GetOutputDictANCFFromSDictANCF(mbs, sDictANCF={}, sensorOutputVariableTypeANCFList=[], verbose=False):
