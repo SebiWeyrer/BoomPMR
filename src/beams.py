@@ -203,6 +203,8 @@ class EulerBernulliBeam:
     # note that this functions assumes that the sliding joint is between node A and node B; alpha weights between A and B
     def SetConstrainedNodeNumbersDueToSlidingJoint(self, q, t):
         # use the reference position of the nodes to set the slider constraint
+        # in EB, a simple traverse load does not produce a displacement in x-direction
+        # this is not an assumption of the constraint here, it is an assumption of the EB formalism
         positionListToSetConstraint = self.nodeReferencePositionsList
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++

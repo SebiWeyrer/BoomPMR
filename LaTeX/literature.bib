@@ -135,14 +135,6 @@
   groups       = {Mechanics},
 }
 
-@Book{Bathe1996,
-  author    = {Klaus-Jürgen Bathe},
-  publisher = {Prentice-Hall},
-  title     = {{Finite Element Procedures}},
-  year      = {1996},
-  groups    = {Books, Mechanics},
-}
-
 @Article{Daniel2004,
   author   = {L. Daniel and O. C. Siong and L. S. Chay and K. H. Lee and J. White},
   journal  = {IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems},
@@ -154,6 +146,76 @@
   doi      = {10.1109/TCAD.2004.826583},
   groups   = {Model Order Reduction, Parametric},
   keywords = {Solid modeling;Integrated circuit interconnections;Integrated circuit modeling;Integrated circuit synthesis;Capacitance;Wire;Algorithm design and analysis;Testing;Predictive models;Capacitors},
+}
+
+@Article{Gerstmayr2008,
+  author   = {Johannes Gerstmayr and Hans Irschik},
+  journal  = {Journal of Sound and Vibration},
+  title    = {On the correct representation of bending and axial deformation in the absolute nodal coordinate formulation with an elastic line approach},
+  year     = {2008},
+  number   = {3},
+  pages    = {461--487},
+  volume   = {318},
+  abstract = {In finite element methods that are based on position and slope coordinates, a representation of axial and bending deformation by means of an elastic line approach has become popular. Such beam and plate formulations based on the so-called absolute nodal coordinate formulation have not yet been verified sufficiently enough with respect to analytical results or classical nonlinear rod theories. Examining the existing planar absolute nodal coordinate element, which uses a curvature proportional bending strain expression, it turns out that the deformation does not fully agree with the solution of the geometrically exact theory and, even more serious, the normal force is incorrect. A correction based on the classical ideas of the extensible elastica and geometrically exact theories is applied and a consistent strain energy and bending moment relations are derived. The strain energy of the solid finite element formulation of the absolute nodal coordinate beam is based on the St. Venantâ€“Kirchhoff material: therefore, the strain energy is derived for the latter case and compared to classical nonlinear rod theories. The error in the original absolute nodal coordinate formulation is documented by numerical examples. The numerical example of a large deformation cantilever beam shows that the normal force is incorrect when using the previous approach, while a perfect agreement between the absolute nodal coordinate formulation and the extensible elastica can be gained when applying the proposed modifications. The numerical examples show a very good agreement of reference analytical and numerical solutions with the solutions of the proposed beam formulation for the case of large deformation pre-curved static and dynamic problems, including buckling and eigenvalue analysis. The resulting beam formulation does not employ rotational degrees of freedom and therefore has advantages compared to classical beam elements regarding energy-momentum conservation.},
+  doi      = {10.1016/j.jsv.2008.04.019},
+  groups   = {Multibody Dynamics},
+}
+
+@Article{Pieber2022,
+  author   = {Pieber, Michael and Ntarladima, Konstantina and Winkler, Robert and Gerstmayr, Johannes},
+  journal  = {Journal of Computational and Nonlinear Dynamics},
+  title    = {{A Hybrid Arbitrary Lagrangian Eulerian Formulation for the Investigation of the Stability of Pipes Conveying Fluid and Axially Moving Beams}},
+  year     = {2022},
+  month    = {03},
+  number   = {5},
+  volume   = {17},
+  abstract = {This work addresses pipes conveying fluid and axially moving beams undergoing large deformations. A novel two-dimensional beam finite element is presented, based on the absolute nodal coordinate formulation (ANCF) with an extra Eulerian coordinate to describe axial motion. The resulting formulation is well known as the arbitrary Lagrangian Eulerian (ALE) method, which is often used to model axially moving beams and pipes conveying fluid. The proposed approach, which is derived from an extended version of Lagrange's equations of motion, allows for the investigation of the stability of pipes conveying fluid and axially moving beams for a certain axial velocity and stationary state of large deformation. Additionally, a multibody modeling approach allows us to extend the beam formulation for comoving discrete masses, which represent concentrated masses attached to the beam, e.g., gondolas in ropeway systems, or transported masses in conveyor belts. Within numerical investigations, we show that axially moving beams and a larger number of discrete masses behave similarly as in the case of beams with evenly distributed mass.},
+  doi      = {10.1115/1.4053505},
+  groups   = {Multibody Dynamics},
+}
+
+@Article{Gerstmayr2024,
+  author  = {Johannes Gerstmayr},
+  journal = {Multibody System Dynamics},
+  title   = {{Exudyn – A C++ based Python package for flexible multibody systems}},
+  year    = {2024},
+  pages   = {533--561},
+  volume  = {60},
+  doi     = {10.1007/s11044-023-09937-1},
+  groups  = {Software, Multibody Dynamics},
+}
+
+@Book{Bathe1996,
+  author    = {Klaus-Jürgen Bathe},
+  publisher = {Prentice-Hall},
+  title     = {{Finite Element Procedures}},
+  year      = {1996},
+  address   = {New Jersey},
+  groups    = {Books, Mechanics},
+}
+
+@Article{Tamarozzi2014,
+  author   = {T. Tamarozzi and G. H. K. Heirman and W. Desmet},
+  journal  = {Computer Methods in Applied Mechanics and Engineering},
+  title    = {{An on-line time dependent parametric model order reduction scheme with focus on dynamic stress recovery}},
+  year     = {2014},
+  pages    = {336--358},
+  volume   = {268},
+  abstract = {In view of the tendency towards ever lighter and more powerful machines and even shorter design cycles, it becomes essential to have virtual prototyping tools that allow for fast and reliable numerical simulations. Current state-of-the-art structural dynamics and flexible multibody simulation techniques usually involve the solution of matrix systems with thousands to millions of variables. Model order reduction schemes are used to keep computational effort affordable at the expense of a minimal loss of accuracy. These techniques typically face difficulties with systems in which flexible bodies can be loaded in many degrees of freedom and rarely allow for accurate local stress and strain evaluation. The present work proposes to address both issues for the particular but frequent case of moving loads or boundary conditions. This behavior is found in most of the contact problems and systems that include sliding components for which many loading or boundary locations are possible but only a few of them are active at a certain moment in time. The proposed scheme exploits a reduction vector space that continuously varies in time by means of a parametric definition of the external load position. Contrary to the majority of the parametric model order reduction schemes that allow mainly for quasi-static parametric variations, the proposed approach can be used efficiently for time simulation of dynamically varying parametric models. This is achieved by considering the implicit time dependency of the reduction vector space using Galerkin projections or alternatively by direct substitution of the reduced kinetic energy, potential energy and generalized forces in the Lagrange equations. It is shown, by developing a consistent mathematical framework, that the price to pay for the very compact reduction space obtained is the evaluation of some extra terms in the equations of motion. Numerical examples are used to assess the accuracy of the proposed method. Results show the potential of this strategy with particular focus on displacement and stress fields and furthermore highlight its real-time potential. Moreover the developed framework together with the numerical results allow for a deeper physical understanding of the complex phenomena related to this category of time varying multiple-input/multiple output systems.},
+  doi      = {10.1016/j.cma.2013.09.021},
+  groups   = {Parametric},
+  keywords = {Parametric model order reduction, Stress recovery, Flexible bodies, Static augmentation, Time varying load location},
+}
+
+@Book{Karpfinger2017,
+  author    = {Christian Karpfinger},
+  publisher = {Springer Spektrum},
+  title     = {{Höhere Mathematik in Rezepten}},
+  year      = {2017},
+  address   = {Berlin, Heidelberg},
+  edition   = {3},
+  doi       = {10.1007/978-3-662-54809-7},
+  groups    = {AIBikes, Books, Mathematical Foundations},
 }
 
 @Comment{jabref-meta: databaseType:bibtex;}
