@@ -36,8 +36,8 @@ length = 5                                  # [m] length of boom
 rhoA = 78 #490 #78                          # [kg/m] mass per length of beam
 EA = 2e7                                    # [N] axial stiffness of beam
 EI = 5e4 #6.8e7 # 5e4 #6.8e7#               # [Nm^2] bending stiffness of beam
-nElements = 40                              # number of elements (discretization) the beam (NR and PMR) is made out of
-nElementsANCF = 10                          # number of elements (discretization) the beam (ANCF) is made out of    
+nElements = 50                              # number of elements (discretization) the beam (NR and PMR) is made out of
+nElementsANCF = 20                          # number of elements (discretization) the beam (ANCF) is made out of    
 nSnapshots = 12                             # number of snapshots used for global reduction
 nEigenmodesPerSnapshot = 4                  # eigenmodes used per snapshot
 nGlobalModes = 24                           # number of global modes in global reduction basis
@@ -79,38 +79,38 @@ standardColors, labelList, rawDataLabelList, markerList, timeStr, slidingStr = G
 
 #%% define a function that returns a sliding joint position and a load on the tip
 print('Info: Velocity of sliding joint:', str(abs(stopPosition-startPosition)/(stopTime-startTime)) + 'm/s.')
-def SlidingJointFunction(t, startPosition=startPosition, stopPosition=stopPosition,
-                         startTime=startTime, stopTime=stopTime):
-    if solveInMinimalCoordinatesWithRadau:
-        return length/2
-    if t < startTime:
-        return startPosition
-    if t > stopTime:
-        return stopPosition
-    else:
-        return startPosition + ((stopPosition-startPosition)/(stopTime-startTime)) * (t-startTime)
-# NOTE: this only works for interpolated BC since with no interpolation node-flickering is prevented
 # def SlidingJointFunction(t, startPosition=startPosition, stopPosition=stopPosition,
 #                          startTime=startTime, stopTime=stopTime):
+#     if solveInMinimalCoordinatesWithRadau:
+#         return length/2
 #     if t < startTime:
 #         return startPosition
 #     if t > stopTime:
-#         return startPosition
+#         return stopPosition
 #     else:
-#         duration = (stopTime-startTime) / 2
-#         if t > startTime and t < (startTime+duration):
-#             return startPosition + ((stopPosition-startPosition)/(duration)) * (t-startTime) 
-#         else:
-#             return stopPosition - ((stopPosition-startPosition)/(duration)) * (t-(startTime+duration))
-def LoadTipFunction(mbs, t, load):
-    # # excite the 1st eigenmode of sliding joint being at node 22
-    # omega = np.sqrt(111.31172747)
-    # # excite the 2nd eigenmode of sliding joint being at node 22
-    # omega = np.sqrt(1747.41342898)
-    # # excite the 3rd eigenmode of sliding joint being at node 22
-    # omega = np.sqrt(8417.44841418)
-    # return 50 * sin(omega*t)
-    return -A
+#         return startPosition + ((stopPosition-startPosition)/(stopTime-startTime)) * (t-startTime)
+# NOTE: this only works for interpolated BC since with no interpolation node-flickering is prevented
+def SlidingJointFunction(t, startPosition=startPosition, stopPosition=stopPosition,
+                         startTime=startTime, stopTime=stopTime):
+    if t < startTime:
+        return startPosition
+    if t > stopTime:
+        return startPosition
+    else:
+        duration = (stopTime-startTime) / 2
+        if t > startTime and t < (startTime+duration):
+            return startPosition + ((stopPosition-startPosition)/(duration)) * (t-startTime) 
+        else:
+            return stopPosition - ((stopPosition-startPosition)/(duration)) * (t-(startTime+duration))
+# def LoadTipFunction(mbs, t, load):
+#     # # excite the 1st eigenmode of sliding joint being at node 22
+#     # omega = np.sqrt(111.31172747)
+#     # # excite the 2nd eigenmode of sliding joint being at node 22
+#     # omega = np.sqrt(1747.41342898)
+#     # # excite the 3rd eigenmode of sliding joint being at node 22
+#     # omega = np.sqrt(8417.44841418)
+#     # return 50 * sin(omega*t)
+#     return -A
 # def LoadTipFunction(mbs, t, load):
 #     A = - 50
 #     fStart = 1      # [Hz] starting frequency of the chirp
@@ -121,19 +121,19 @@ def LoadTipFunction(mbs, t, load):
 #         return A * np.sin(2*np.pi*f*t)
 #     else:
 #         return A
-# def LoadTipFunction(mbs, t, load):
-#     fStart = 1
-#     fEnd = 10
-#     TChirp = tEnd/2
-#     if t <= TChirp:
-#         f = fStart + (fEnd - fStart) * t / TChirp
-#         return A * np.sin(2 * np.pi * f * t)
-#     elif t <= 2 * TChirp:
-#         tLocal = t - TChirp
-#         f = fEnd - (fEnd - fStart) * tLocal / TChirp
-#         return A * np.sin(2 * np.pi * f * t)
-#     else:
-#         return A * np.sin(2 * np.pi * fStart * t)
+def LoadTipFunction(mbs, t, load):
+    fStart = 1
+    fEnd = 10
+    TChirp = tEnd/2
+    if t <= TChirp:
+        f = fStart + (fEnd - fStart) * t / TChirp
+        return A * np.sin(2 * np.pi * f * t)
+    elif t <= 2 * TChirp:
+        tLocal = t - TChirp
+        f = fEnd - (fEnd - fStart) * tLocal / TChirp
+        return A * np.sin(2 * np.pi * f * t)
+    else:
+        return A * np.sin(2 * np.pi * fStart * t)
 
 #%% create the beams (non reduced and globally reduced)
 PrintHeadlineToConsole(text='Setting up beams')

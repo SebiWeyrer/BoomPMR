@@ -1,8 +1,8 @@
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #
-# Details:  
+# Details:  ANCF ... ANCF beam; beam ... Euler-Bernoulli beam (NR or PMR)
 # Author:   Sebastian Weyrer
-# Date:     2026-04-27
+# Date:     2026-05-03
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -184,7 +184,7 @@ if not onlyLoadResults:
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # initialize beam (to inherit some data to ANCF beam)
-    beamConvergenceAnalysis = EulerBernulliBeam(beamTemplate=beamTemplateRubber)
+    beamConvergenceAnalysisNR = EulerBernulliBeam(beamTemplate=beamTemplateRubber)
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # ANCF elements
@@ -199,9 +199,9 @@ if not onlyLoadResults:
         mCoordGround = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nGround, coordinate=0,
                                                           visualization=VMarkerNodeCoordinates(show=False)))
         sensorOutputVariableTypeConvergenceAnalysisANCFList = [exu.OutputVariableType.Displacement] # here, we only need displacement
-        sDictConvergenceAnalysisANCF = AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunctionConvergenceAnalysis, LoadTipFunctionConvergenceAnalysis, length=length, rhoA=beamConvergenceAnalysis.rhoA, EI=beamConvergenceAnalysis.EI, EA=beamConvergenceAnalysis.EA,
+        sDictConvergenceAnalysisANCF = AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunctionConvergenceAnalysis, LoadTipFunctionConvergenceAnalysis, length=length, rhoA=beamConvergenceAnalysisNR.rhoA, EI=beamConvergenceAnalysisNR.EI, EA=beamConvergenceAnalysisNR.EA,
                                                                                      nElementsANCF=nElementsANCF, mCoordGround=mCoordGround, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeConvergenceAnalysisANCFList,
-                                                                                     beamNodeReferencePositionList=beamConvergenceAnalysis.nodeReferencePositionsList)
+                                                                                     beamNodeReferencePositionList=beamConvergenceAnalysisNR.nodeReferencePositionsList)
         mbs.Assemble()
         simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
         mbs.SolveDynamic(simulationSettings=simulationSettings)
@@ -225,14 +225,14 @@ if not onlyLoadResults:
         mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
         nGround = mbs.AddNode(NodePointGround())
         mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
-        beamConvergenceAnalysis = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
-                                                    nElements=nElementsBeam, # OVERWRITE!
-                                                    slidingJointFunction=SlidingJointFunctionConvergenceAnalysis,
-                                                    loadTipFunction=LoadTipFunctionConvergenceAnalysis)
+        beamConvergenceAnalysisNR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
+                                                      nElements=nElementsBeam, # OVERWRITE!
+                                                      slidingJointFunction=SlidingJointFunctionConvergenceAnalysis,
+                                                      loadTipFunction=LoadTipFunctionConvergenceAnalysis)
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
         # add beam to mbs
-        sCoordinatesConvergenceAnalysisBeam, sCoordinates_tConvergenceAnalysisBeam = beamConvergenceAnalysis.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
+        sCoordinatesConvergenceAnalysisBeam, sCoordinates_tConvergenceAnalysisBeam = beamConvergenceAnalysisNR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
         # simulate dynamically (WYSWYS)
@@ -242,7 +242,7 @@ if not onlyLoadResults:
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
         # get results
-        _, time, qConvergenceAnalysis, q_tConvergenceAnalysis = beamConvergenceAnalysis.GetTimeAndCoordinates(mbs, sCoordinatesConvergenceAnalysisBeam, sCoordinates_tConvergenceAnalysisBeam)
+        _, time, qConvergenceAnalysis, q_tConvergenceAnalysis = beamConvergenceAnalysisNR.GetTimeAndCoordinates(mbs, sCoordinatesConvergenceAnalysisBeam, sCoordinates_tConvergenceAnalysisBeam)
         tipDisplacementConvergenceAnalysisBeamList += [qConvergenceAnalysis[:, -2]]
         print('Beam convergence analysis: Finished', i+1, '/', len(nElementsBeamList), 'analyses.')
     errorListConvergenceAnalysisBeam = []
@@ -277,43 +277,59 @@ axConvergenceAnalysisANCF.set_xlabel('number of elements')
 axConvergenceAnalysisANCF.set_ylabel('abs. error tip y-displacement in m')
 SaveFig(figConvergenceAnalysisANCF, figPath, 'E_convergenceAnalysis', closeFig=False)
 
-#%% test needed number of global modes by taking them away
-PrintHeadlineToConsole(text='Global Mode Number')
-if not onlyLoadResults:
-    # initial guess
-    nSnapshots = 6
-    nEigenmodesPerSnapshot = 6
-    nGlobalModesInitial = nSnapshots * nEigenmodesPerSnapshot # max number
-    
-    #++++++++++++++++++++++++++++++++++++++++++++++++++
+#%% compute strain eneregy sum error over number of global modes
+PrintHeadlineToConsole(text='Strain Energy Sum Error')
+# offline compute reference strain energy sum (non-reduced beam)
+SC = exu.SystemContainer()
+mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
+nGround = mbs.AddNode(NodePointGround())
+mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
+beamStrainEnergySumNR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
+                                          slidingJointFunction=SlidingJointFunctionEvolved,
+                                          loadTipFunction=LoadTipFunctionEvolved)
+sCoordinatesStrainEnergySumBeamNR, sCoordinates_tStrainEnergySumBeamNR = beamGlobalModeNumberNRNR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
+mbs.Assemble()
+simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
+mbs.SolveDynamic(simulationSettings=simulationSettings)
+_, time, qStrainEnergySumBeamNR, q_tStrainEnergySumBeamNR = beamStrainEnergySumNR.GetTimeAndCoordinates(mbs, sCoordinatesStrainEnergySumBeamNR, sCoordinates_tStrainEnergySumBeamNR)
+strainEnergySumNR = beamStrainEnergySumNR.GetSumOfBeamStrainEnergy(qStrainEnergySumBeamNR)
+print('Non-reduced strain energy sum:', strainEnergySumNR, 'J.')
+
+#++++++++++++++++++++++++++++++++++++++++++++++++++
+# do MAIN variation for nSnap and rSnap
+# pairs that should be investigated (first number is nSnap, second is rSnap)
+pairsToBeInvestigatedList = [(6, 6), (4, 9), (9, 4), (2, 18), (18, 2)]
+nGlobalModesInitial = 36 # here we always use combinations that give 36 (could be any number...)
+nGlobalModesUsedList = [nGlobalModesInitial-i for i in range(nGlobalModesInitial-2)]
+nAnalyses = len(nGlobalModesUsedList) * len(pairsToBeInvestigatedList)
+strainEnergySumList = []
+nAnalysesCompleted = 0
+for pair in pairsToBeInvestigatedList:
     # offline compute initial global reduction basis
-    beamGlobalModeNumber = EulerBernulliBeam(beamTemplate=beamTemplateRubber)
-    eigenmodesLiftedAndMassNormalizedList = beamGlobalModeNumber.GetGlobalMassNormalizedEigenmodesListForNumberOfConstrainedNodes(nNodesConstrained=nSnapshots,
-                                                                                                                                                                 nEigenmodes=nEigenmodesPerSnapshot,
-                                                                                                                                                                 verbose=True)
-    globalReductionBasisInitial = beamGlobalModeNumber.GetGlobalReductionBasisUsingEigenmodesList(eigenmodesList=eigenmodesLiftedAndMassNormalizedList,
-                                                                                                      nGlobalModes=nGlobalModesInitial, verbose=True)
+    beamStrainEnergyPMR = EulerBernulliBeam(beamTemplate=beamTemplateRubber)
+    eigenmodesLiftedAndMassNormalizedList = beamStrainEnergyPMR.GetGlobalMassNormalizedEigenmodesListForNumberOfConstrainedNodes(nNodesConstrained=pair[0],
+                                                                                                                                 nEigenmodes=pair[1],
+                                                                                                                                 verbose=True)
+    globalReductionBasisInitial = beamStrainEnergyPMR.GetGlobalReductionBasisUsingEigenmodesList(eigenmodesList=eigenmodesLiftedAndMassNormalizedList,
+                                                                                                 nGlobalModes=nGlobalModesInitial, verbose=True)
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # iterate over the global modes and remove them successively
-    strainEnergySumList = []
-    globalModesUsedList = []
-    for i in range(nGlobalModesInitial-2): # leave at least two modes
+    strainEnergySumForPairList = []
+    for nGlobalModesUsed in nGlobalModesUsedList: # leave at least two modes
         # initialize beam
         SC = exu.SystemContainer()
         mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
         nGround = mbs.AddNode(NodePointGround())
         mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
-        beamGlobalModeNumber = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
-                                                     slidingJointFunction=SlidingJointFunctionEvolved,
-                                                     loadTipFunction=LoadTipFunctionEvolved)
+        beamStrainEnergySumPMR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
+                                                   slidingJointFunction=SlidingJointFunctionEvolved,
+                                                   loadTipFunction=LoadTipFunctionEvolved)
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
-        # GLOBALLY reduced beam and add it
-        nGlobalModesUsed = nGlobalModesInitial - i
-        globalModesUsedList += [nGlobalModesUsed]
-        beamGlobalModeNumber.ReduceBeam(reductionBasis=globalReductionBasisInitial[:, 0:nGlobalModesUsed])
-        sCoordinatesGlobalModeNumberBeamPMR, sCoordinates_tGlobalModeNumberBeamPMR = beamGlobalModeNumber.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
+        # GLOBALLY reduced beam and add it (here we can not use the wrapper for global reduction)
+        beamStrainEnergySumPMR.ReduceBeam(reductionBasis=globalReductionBasisInitial[:, 0:nGlobalModesUsed])
+        sCoordinatesStrainEnergySumBeamPMR, sCoordinates_tStrainEnergySumBeamPMR = beamStrainEnergySumPMR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
         # simulate dynamically (WYSWYS)
@@ -323,33 +339,41 @@ if not onlyLoadResults:
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
         # get results
-        _, time, qGlobalModeNumberBeamPMR, q_tGlobalModeNumberBeamPMR = beamGlobalModeNumber.GetTimeAndCoordinates(mbs, sCoordinatesGlobalModeNumberBeamPMR, sCoordinates_tGlobalModeNumberBeamPMR)
-        strainEnergySum = beamGlobalModeNumber.GetSumOfBeamStrainEnergy(qGlobalModeNumberBeamPMR)
-        strainEnergySumList += [strainEnergySum]
-        print('Global mode number test: Finished', i+1, '/', nGlobalModesInitial-2, 'analyses.')
-    strainEnergySumErrorList = []
-    strainEnergySumErrorList += [0]
-    for strainEnergySum in strainEnergySumList[1:]:
-        strainEnergySumErrorList += [abs(strainEnergySum-strainEnergySumList[0])]
-    AppendResultsToPKLFile(resultsFileName, 'globalModeNumber', {'globalModesUsedList': globalModesUsedList,
-                                                                 'strainEnergySumErrorList': strainEnergySumErrorList})
-
+        _, time, qStrainEnergySumBeamPMR, q_tStrainEnergySumBeamPMR = beamStrainEnergySumPMR.GetTimeAndCoordinates(mbs, sCoordinatesStrainEnergySumBeamPMR, sCoordinates_tStrainEnergySumBeamPMR)
+        strainEnergySum = beamStrainEnergySumPMR.GetSumOfBeamStrainEnergy(qStrainEnergySumBeamPMR)
+        strainEnergySumForPairList += [strainEnergySum]
+        nAnalysesCompleted += 1
+        print(f'Completed {(nAnalysesCompleted/nAnalyses) * 100:05.1f}%.')
+    strainEnergySumList += [strainEnergySumForPairList]
+AppendResultsToPKLFile(resultsFileName, 'strainEnergySum', {'pairsToBeInvestigatedList': pairsToBeInvestigatedList,
+                                                            'nGlobalModesUsedList': nGlobalModesUsedList,
+                                                            'strainEnergySumNR': strainEnergySumNR,
+                                                            'strainEnergySumList': strainEnergySumList})
+#%%
 #++++++++++++++++++++++++++++++++++++++++++++++++++
-# plot the errors
+# compute and plot the errors
 indexOfMaxNumberOfGlobalModesPlotted = 14
-resultsDictGlobalModeImportance = GetResultsDictFromPKLFile(resultsFileName, 'globalModeNumber')
-globalModesUsedList = resultsDictGlobalModeImportance['globalModesUsedList']
-strainEnergySumErrorList = resultsDictGlobalModeImportance['strainEnergySumErrorList']
-figGlobalModesNumber, axGlobalModesNumber = plt.subplots(1, 1, figsize=[textWidth, 2])
-x = np.arange(len(globalModesUsedList)-indexOfMaxNumberOfGlobalModesPlotted)
-axGlobalModesNumber.bar(x, [strainEnergySumErrorList[i]/1e3 for i in range(len(strainEnergySumErrorList))][indexOfMaxNumberOfGlobalModesPlotted:],
-                        color=standardColors[2])
-axGlobalModesNumber.set_xticks(x, globalModesUsedList[indexOfMaxNumberOfGlobalModesPlotted:])
-axGlobalModesNumber.set_xlabel(r'number $r_\mathrm{glob.}$ of used global modes')
-axGlobalModesNumber.set_ylabel('error of strain energy in kJ')
-axGlobalModesNumber.grid(axis='y')
-axGlobalModesNumber.set_axisbelow(True)
-SaveFig(figGlobalModesNumber, figPath, 'E_globalModesNumber', closeFig=False)
+resultsDictStrainEnergySum = GetResultsDictFromPKLFile(resultsFileName, 'strainEnergySum')
+pairsToBeInvestigatedList = resultsDictStrainEnergySum['pairsToBeInvestigatedList']
+nGlobalModesUsedList = resultsDictStrainEnergySum['nGlobalModesUsedList']
+strainEnergySumNR = resultsDictStrainEnergySum['strainEnergySumNR']
+strainEnergySumList = resultsDictStrainEnergySum['strainEnergySumList']
+nPairsInvestigated = len(pairsToBeInvestigatedList)
+nGlobalModesUsed = len(nGlobalModesUsedList)
+strainEnergySumErrorMatrix = np.zeros([nPairsInvestigated, nGlobalModesUsed])
+for i in range(nPairsInvestigated):
+    for j in range(nGlobalModesUsed):
+        strainEnergySumErrorMatrix[i, j] = abs(strainEnergySumList[i][j]-strainEnergySumNR)
+figStrainSumError, axStrainSumError = plt.subplots(1, 1, figsize=[textWidth, 2.5])
+x = np.arange(nGlobalModesUsed-indexOfMaxNumberOfGlobalModesPlotted)
+for i, pair in enumerate(pairsToBeInvestigatedList):
+    label = r'$n_\mathrm{snap.}=' + str(pair[0]) + r'$, $r_\mathrm{snap.}=' + str(pair[1]) + '$'
+    axStrainSumError.plot(x, strainEnergySumErrorMatrix[i, indexOfMaxNumberOfGlobalModesPlotted:]/(1e3), label=label)
+axStrainSumError.set_xticks(x, nGlobalModesUsedList[indexOfMaxNumberOfGlobalModesPlotted:])
+axStrainSumError.set_xlabel(r'number $r_\mathrm{glob.}$ of global modes used')
+axStrainSumError.set_ylabel('abs. strain energy sum error in kJ')
+axStrainSumError.legend()
+axStrainSumError.grid()
 
-#%% test different combinations of nSnapshots and nEigenmodesPerSnapshot
-PrintHeadlineToConsole(text='Combination Analysis: Number of and Modes per Snapshot')
+#%% compute global mode sensitivity using strain energy 
+PrintHeadlineToConsole(text='Strain Energy Sum Error')
