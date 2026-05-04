@@ -8,10 +8,9 @@
 
 import pickle
 import numpy as np
+import time as tm
 import exudyn as exu
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-import matplotlib.colors as mcolors
 from exudyn.utilities import *
 from beams import EulerBernulliBeam, BeamTemplate
 from utilities import *
@@ -277,103 +276,274 @@ axConvergenceAnalysisANCF.set_xlabel('number of elements')
 axConvergenceAnalysisANCF.set_ylabel('abs. error tip y-displacement in m')
 SaveFig(figConvergenceAnalysisANCF, figPath, 'E_convergenceAnalysis', closeFig=False)
 
-#%% compute strain eneregy sum error over number of global modes
-PrintHeadlineToConsole(text='Strain Energy Sum Error')
-# offline compute reference strain energy sum (non-reduced beam)
-SC = exu.SystemContainer()
-mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
-nGround = mbs.AddNode(NodePointGround())
-mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
-beamStrainEnergySumNR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
-                                          slidingJointFunction=SlidingJointFunctionEvolved,
-                                          loadTipFunction=LoadTipFunctionEvolved)
-sCoordinatesStrainEnergySumBeamNR, sCoordinates_tStrainEnergySumBeamNR = beamGlobalModeNumberNRNR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
-mbs.Assemble()
-simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
-mbs.SolveDynamic(simulationSettings=simulationSettings)
-_, time, qStrainEnergySumBeamNR, q_tStrainEnergySumBeamNR = beamStrainEnergySumNR.GetTimeAndCoordinates(mbs, sCoordinatesStrainEnergySumBeamNR, sCoordinates_tStrainEnergySumBeamNR)
-strainEnergySumNR = beamStrainEnergySumNR.GetSumOfBeamStrainEnergy(qStrainEnergySumBeamNR)
-print('Non-reduced strain energy sum:', strainEnergySumNR, 'J.')
-
-#++++++++++++++++++++++++++++++++++++++++++++++++++
-# do MAIN variation for nSnap and rSnap
-# pairs that should be investigated (first number is nSnap, second is rSnap)
-pairsToBeInvestigatedList = [(6, 6), (4, 9), (9, 4), (2, 18), (18, 2)]
-nGlobalModesInitial = 36 # here we always use combinations that give 36 (could be any number...)
-nGlobalModesUsedList = [nGlobalModesInitial-i for i in range(nGlobalModesInitial-2)]
-nAnalyses = len(nGlobalModesUsedList) * len(pairsToBeInvestigatedList)
-strainEnergySumList = []
-nAnalysesCompleted = 0
-for pair in pairsToBeInvestigatedList:
-    # offline compute initial global reduction basis
-    beamStrainEnergyPMR = EulerBernulliBeam(beamTemplate=beamTemplateRubber)
-    eigenmodesLiftedAndMassNormalizedList = beamStrainEnergyPMR.GetGlobalMassNormalizedEigenmodesListForNumberOfConstrainedNodes(nNodesConstrained=pair[0],
-                                                                                                                                 nEigenmodes=pair[1],
-                                                                                                                                 verbose=True)
-    globalReductionBasisInitial = beamStrainEnergyPMR.GetGlobalReductionBasisUsingEigenmodesList(eigenmodesList=eigenmodesLiftedAndMassNormalizedList,
-                                                                                                 nGlobalModes=nGlobalModesInitial, verbose=True)
+#%% compute strain eneregy error
+PrintHeadlineToConsole(text='Strain Energy Error')
+if not onlyLoadResults:
+    #%%
+    # offline compute reference strain energy sum (non-reduced beam)
+    SC = exu.SystemContainer()
+    mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
+    nGround = mbs.AddNode(NodePointGround())
+    mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
+    beamStrainEnergySumNR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
+                                              slidingJointFunction=SlidingJointFunctionEvolved,
+                                              loadTipFunction=LoadTipFunctionEvolved)
+    sCoordinatesStrainEnergySumBeamNR, sCoordinates_tStrainEnergySumBeamNR = beamStrainEnergySumNR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
+    mbs.Assemble()
+    simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
+    mbs.SolveDynamic(simulationSettings=simulationSettings)
+    _, time, qStrainEnergySumBeamNR, q_tStrainEnergySumBeamNR = beamStrainEnergySumNR.GetTimeAndCoordinates(mbs, sCoordinatesStrainEnergySumBeamNR, sCoordinates_tStrainEnergySumBeamNR)
+    strainEnergySumNR = beamStrainEnergySumNR.GetSumOfBeamStrainEnergy(qStrainEnergySumBeamNR)
+    print('Non-reduced strain energy sum:', strainEnergySumNR, 'J.')
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
-    # iterate over the global modes and remove them successively
-    strainEnergySumForPairList = []
-    for nGlobalModesUsed in nGlobalModesUsedList: # leave at least two modes
-        # initialize beam
-        SC = exu.SystemContainer()
-        mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
-        nGround = mbs.AddNode(NodePointGround())
-        mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
-        beamStrainEnergySumPMR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
-                                                   slidingJointFunction=SlidingJointFunctionEvolved,
-                                                   loadTipFunction=LoadTipFunctionEvolved)
+    # determine combinations that should be tested
+    nGlobalModesMaxPossible = 40
+    nGlobalModesMinPossible = 15
+    nGlobalModesMaxEvaluated = 24
+    pairsToBeInvestigatedList = []
+    for nSnap in range(1, nGlobalModesMaxPossible + 1):
+        for rSnap in range(1, nGlobalModesMaxPossible + 1):
+            product = nSnap * rSnap
+            if nGlobalModesMinPossible <= product <= nGlobalModesMaxPossible:
+                pairsToBeInvestigatedList += [(nSnap, rSnap)]
+    # pairs that should be investigated (first number is nSnap, second is rSnap)
+    pairsToBeInvestigatedList = sorted(list(set(pairsToBeInvestigatedList)))
+    nPairsToBeInvestigated = len(pairsToBeInvestigatedList)
+    print('Total number of combinations to investigate:', nPairsToBeInvestigated)
+    # now check how many analyses are done
+    nAnalyses = 0
+    nGlobalModesAnalysedList = []
+    for pair in pairsToBeInvestigatedList:
+        nGlobalModesPossible = pair[0] * pair[1]
+        if nGlobalModesPossible <= nGlobalModesMaxEvaluated:
+            nGlobalModesEvaluated = nGlobalModesPossible
+        if nGlobalModesPossible > nGlobalModesMaxEvaluated:
+            nGlobalModesEvaluated = nGlobalModesMaxEvaluated
+        nAnalyses += nGlobalModesEvaluated
+        nGlobalModesAnalysedList += [[nGlobalModesEvaluated-i for i in range(nGlobalModesEvaluated-2)]]
+    print('Total number of analyses:', nAnalyses)
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # do MAIN variation
+    
+    
+    nGlobalModesUsedList = [nGlobalModesMaxTested-i for i in range(nGlobalModesMaxTested-2)]
+    nAnalyses = len(nGlobalModesUsedList) * nPairsToBeInvestigated
+    strainEnergySumList = []
+    nAnalysesCompleted = 0
+    startTime = tm.time()
+    for pair in pairsToBeInvestigatedList:
+        # OFFLINE compute initial global reduction basis
+        beamStrainEnergyPMR = EulerBernulliBeam(beamTemplate=beamTemplateRubber)
+        eigenmodesLiftedAndMassNormalizedList = beamStrainEnergyPMR.GetGlobalMassNormalizedEigenmodesListForNumberOfConstrainedNodes(nNodesConstrained=pair[0],
+                                                                                                                                     nEigenmodes=pair[1],
+                                                                                                                                     verbose=True)
+        globalReductionBasisInitial = beamStrainEnergyPMR.GetGlobalReductionBasisUsingEigenmodesList(eigenmodesList=eigenmodesLiftedAndMassNormalizedList,
+                                                                                                     nGlobalModes=nGlobalModesMaxTested, verbose=True)
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
-        # GLOBALLY reduced beam and add it (here we can not use the wrapper for global reduction)
-        beamStrainEnergySumPMR.ReduceBeam(reductionBasis=globalReductionBasisInitial[:, 0:nGlobalModesUsed])
-        sCoordinatesStrainEnergySumBeamPMR, sCoordinates_tStrainEnergySumBeamPMR = beamStrainEnergySumPMR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
-        
-        #++++++++++++++++++++++++++++++++++++++++++++++++++
-        # simulate dynamically (WYSWYS)
-        mbs.Assemble()
-        simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
-        mbs.SolveDynamic(simulationSettings=simulationSettings)
-        
-        #++++++++++++++++++++++++++++++++++++++++++++++++++
-        # get results
-        _, time, qStrainEnergySumBeamPMR, q_tStrainEnergySumBeamPMR = beamStrainEnergySumPMR.GetTimeAndCoordinates(mbs, sCoordinatesStrainEnergySumBeamPMR, sCoordinates_tStrainEnergySumBeamPMR)
-        strainEnergySum = beamStrainEnergySumPMR.GetSumOfBeamStrainEnergy(qStrainEnergySumBeamPMR)
-        strainEnergySumForPairList += [strainEnergySum]
-        nAnalysesCompleted += 1
-        print(f'Completed {(nAnalysesCompleted/nAnalyses) * 100:05.1f}%.')
-    strainEnergySumList += [strainEnergySumForPairList]
-AppendResultsToPKLFile(resultsFileName, 'strainEnergySum', {'pairsToBeInvestigatedList': pairsToBeInvestigatedList,
-                                                            'nGlobalModesUsedList': nGlobalModesUsedList,
-                                                            'strainEnergySumNR': strainEnergySumNR,
-                                                            'strainEnergySumList': strainEnergySumList})
-#%%
+        # iterate over the global modes and remove them successively
+        strainEnergySumForPairList = []
+        for nGlobalModesUsed in nGlobalModesUsedList:
+            # initialize beam
+            SC = exu.SystemContainer()
+            mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
+            nGround = mbs.AddNode(NodePointGround())
+            mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
+            beamStrainEnergySumPMR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
+                                                       slidingJointFunction=SlidingJointFunctionEvolved,
+                                                       loadTipFunction=LoadTipFunctionEvolved)
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # GLOBALLY reduced beam and add it (here we can not use the wrapper for global reduction)
+            beamStrainEnergySumPMR.ReduceBeam(reductionBasis=globalReductionBasisInitial[:, 0:nGlobalModesUsed])
+            sCoordinatesStrainEnergySumBeamPMR, sCoordinates_tStrainEnergySumBeamPMR = beamStrainEnergySumPMR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # simulate dynamically (WYSWYS)
+            mbs.Assemble()
+            simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
+            mbs.SolveDynamic(simulationSettings=simulationSettings)
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # get results
+            _, time, qStrainEnergySumBeamPMR, q_tStrainEnergySumBeamPMR = beamStrainEnergySumPMR.GetTimeAndCoordinates(mbs, sCoordinatesStrainEnergySumBeamPMR, sCoordinates_tStrainEnergySumBeamPMR)
+            strainEnergySum = beamStrainEnergySumPMR.GetSumOfBeamStrainEnergy(qStrainEnergySumBeamPMR)
+            strainEnergySumForPairList += [strainEnergySum]
+            nAnalysesCompleted += 1
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # track progress
+            neededTime = (tm.time() - startTime) / nAnalysesCompleted
+            nAnalysesToGo = nAnalyses - nAnalysesCompleted
+            timeToGo = nAnalysesToGo * neededTime
+            hoursToGo = int(timeToGo) // 3600
+            minutesToGo = (int(timeToGo) % 3600) // 60
+            secondsToGo = int(timeToGo) % 60
+            print(f'Completed {(nAnalysesCompleted/nAnalyses) * 100:05.1f}%. ETA: {hoursToGo:02d}:{minutesToGo:02d}:{secondsToGo:02d}')
+        strainEnergySumList += [strainEnergySumForPairList]
+    AppendResultsToPKLFile(resultsFileName, 'strainEnergySum', {'pairsToBeInvestigatedList': pairsToBeInvestigatedList,
+                                                                'nGlobalModesUsedList': nGlobalModesUsedList,
+                                                                'strainEnergySumNR': strainEnergySumNR,
+                                                                'strainEnergySumList': strainEnergySumList})
+    #%%
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # compute and plot the errors
-indexOfMaxNumberOfGlobalModesPlotted = 14
 resultsDictStrainEnergySum = GetResultsDictFromPKLFile(resultsFileName, 'strainEnergySum')
 pairsToBeInvestigatedList = resultsDictStrainEnergySum['pairsToBeInvestigatedList']
 nGlobalModesUsedList = resultsDictStrainEnergySum['nGlobalModesUsedList']
 strainEnergySumNR = resultsDictStrainEnergySum['strainEnergySumNR']
 strainEnergySumList = resultsDictStrainEnergySum['strainEnergySumList']
-nPairsInvestigated = len(pairsToBeInvestigatedList)
+nPairsToBeInvestigated = len(pairsToBeInvestigatedList)
 nGlobalModesUsed = len(nGlobalModesUsedList)
-strainEnergySumErrorMatrix = np.zeros([nPairsInvestigated, nGlobalModesUsed])
-for i in range(nPairsInvestigated):
+# for each pair a line, for each mode number a column
+strainEnergySumErrorMatrix = np.zeros([nPairsToBeInvestigated, nGlobalModesUsed])
+for i in range(nPairsToBeInvestigated):
     for j in range(nGlobalModesUsed):
         strainEnergySumErrorMatrix[i, j] = abs(strainEnergySumList[i][j]-strainEnergySumNR)
-figStrainSumError, axStrainSumError = plt.subplots(1, 1, figsize=[textWidth, 2.5])
-x = np.arange(nGlobalModesUsed-indexOfMaxNumberOfGlobalModesPlotted)
-for i, pair in enumerate(pairsToBeInvestigatedList):
-    label = r'$n_\mathrm{snap.}=' + str(pair[0]) + r'$, $r_\mathrm{snap.}=' + str(pair[1]) + '$'
-    axStrainSumError.plot(x, strainEnergySumErrorMatrix[i, indexOfMaxNumberOfGlobalModesPlotted:]/(1e3), label=label)
-axStrainSumError.set_xticks(x, nGlobalModesUsedList[indexOfMaxNumberOfGlobalModesPlotted:])
-axStrainSumError.set_xlabel(r'number $r_\mathrm{glob.}$ of global modes used')
-axStrainSumError.set_ylabel('abs. strain energy sum error in kJ')
-axStrainSumError.legend()
-axStrainSumError.grid()
+# bar chart of three combinations to show filtering effect by Benner et. al
+# figBarChartStrainSumError, axBarChartStrainSumError = plt.subplots(1, 1, figsize=[textWidth, 2.5])
+# indexOfMaxNumberOfGlobalModesPlotted = 0 # we always start plotting from all nGlobalModesMaxTested modes
+# indexListForBarChart = []
+# indexListForBarChart += [pairsToBeInvestigatedList.index((6, 6))]
+# indexListForBarChart += [pairsToBeInvestigatedList.index((12, 2))]
+# indexListForBarChart += [pairsToBeInvestigatedList.index((2, 12))]
+# x = np.arange(nGlobalModesUsed-indexOfMaxNumberOfGlobalModesPlotted)
+# for i, index in enumerate(indexListForBarChart):
+#     nSnapshots = pairsToBeInvestigatedList[index][0]
+#     nEigenmodesPerSnapshot = pairsToBeInvestigatedList[index][1]
+#     axBarChartStrainSumError.plot(x, strainEnergySumErrorMatrix[index, indexOfMaxNumberOfGlobalModesPlotted:]/(1e3),
+#                                   markerList[i], label=r'$n_\mathrm{snap.}=' + str(nSnapshots) + r'$, $r_\mathrm{snap.}=' + str(nEigenmodesPerSnapshot) + '$',
+#                                   color=standardColors[i])
+#     if i == 1:
+#         axBarChartStrainSumError.fill_between(x, strainEnergySumErrorMatrix[index, indexOfMaxNumberOfGlobalModesPlotted:]/(1e3), alpha=0.2,
+#                                               color=standardColors[i])
+#         axBarChartStrainSumError.text(17.2, 0.6, 'cum. strain\n energy sum error', ha='center', va='center',
+#                                       color='black')
+# axBarChartStrainSumError.set_xticks(x, nGlobalModesUsedList[indexOfMaxNumberOfGlobalModesPlotted:])
+# axBarChartStrainSumError.set_xlabel(r'number $r_\mathrm{glob.}$ of global modes used')
+# axBarChartStrainSumError.set_ylabel('abs. strain energy sum error in kJ')
+# axBarChartStrainSumError.legend()
+# axBarChartStrainSumError.set_axisbelow(True)
+# axBarChartStrainSumError.grid()
+# SaveFig(figBarChartStrainSumError, figPath, 'E_strainEnergyBarChart', closeFig=False)
+# heatmap to show spatial coverage vs. mode richness per snapshot
+# for each pair, accumulate the strain energy error sum over ALL tested global mode numbers
+strainEnergySumSumErrorForPairList = []
+for i in range(nPairsToBeInvestigated):
+    strainEnergySumSumErrorForPairList += [np.sum(strainEnergySumErrorMatrix[i, :])]
+# which nSnap do we investigate and which rSnap?
+nSnapshotsUniqueList = sorted(list(set([p[0] for p in pairsToBeInvestigatedList])))
+nEigenmodesPerSnapshotUniqueList = sorted(list(set([p[1] for p in pairsToBeInvestigatedList])))
+# initialize the error mnatrix
+errorMatrix = np.full([len(nEigenmodesPerSnapshotUniqueList), len(nSnapshotsUniqueList)], np.nan)
+for (nSnap, rSnap), error in zip(pairsToBeInvestigatedList, strainEnergySumSumErrorForPairList):
+    i = nEigenmodesPerSnapshotUniqueList.index(rSnap)
+    j = nSnapshotsUniqueList.index(nSnap)
+    errorMatrix[i, j] = error
+# plot
+figHeatmapStrainErrorSum, axHeatmapStrainErrorSum = plt.subplots(figsize=[textWidth, 3.5])
+im = axHeatmapStrainErrorSum.imshow(errorMatrix, cmap='RdYlGn_r', aspect='auto')
+axHeatmapStrainErrorSum.set_xticks(range(len(nSnapshotsUniqueList)))
+axHeatmapStrainErrorSum.set_xticklabels(nSnapshotsUniqueList)
+axHeatmapStrainErrorSum.set_yticks(range(len(nEigenmodesPerSnapshotUniqueList)))
+axHeatmapStrainErrorSum.set_yticklabels(nEigenmodesPerSnapshotUniqueList)
+axHeatmapStrainErrorSum.invert_yaxis() # this we need because of how a matrix is filled up ...
+axHeatmapStrainErrorSum.set_xlabel(r'number $n_\mathrm{snap.}$ of snapshots')
+axHeatmapStrainErrorSum.set_ylabel(r'number $r_\mathrm{snap.}$ of eigenmodes per snapshot')
+# axHeatmapStrainErrorSum.plot(np.arange(nSnapshotsUniqueList[0], nSnapshotsUniqueList[-1]), np.arange(nEigenmodesPerSnapshotUniqueList[0], nEigenmodesPerSnapshotUniqueList[-1]), color='black')
+axHeatmapStrainErrorSum.text(nSnapshotsUniqueList[-1]-7, nSnapshotsUniqueList[-1]-3, r'$r_\mathrm{snap.}=n_\mathrm{snap.}$', ha='left', va='bottom')
+plt.colorbar(im, label='cum. abs. strain energy sum error in kJ')
+axHeatmapStrainErrorSum.set_axisbelow(True)
+SaveFig(figHeatmapStrainErrorSum, figPath, 'E_strainEnergyHeatmap', closeFig=False)
 
-#%% compute global mode sensitivity using strain energy 
-PrintHeadlineToConsole(text='Strain Energy Sum Error')
+#%% show the Hamiltonian of the simple sliding example
+PrintHeadlineToConsole(text='Hamiltonian Simple Example')
+if not onlyLoadResults:
+    # initialize beam (to inherit some data to ANCF beam)
+    beamBCImplementationNR = EulerBernulliBeam(beamTemplate=beamTemplateRubber)
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # add ANCF beam with sliding joint
+    SC = exu.SystemContainer()
+    mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
+    nGround = mbs.AddNode(NodePointGround())
+    # this is needed to constrain ANCF beam on the 'left' side
+    mCoordGround = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nGround, coordinate=0,
+                                                      visualization=VMarkerNodeCoordinates(show=False)))
+    sensorOutputVariableTypeBCImplementationANCFList = [exu.OutputVariableType.Displacement,
+                                                        exu.OutputVariableType.Velocity,
+                                                        exu.OutputVariableType.CurvatureLocal,
+                                                        exu.OutputVariableType.TorqueLocal]
+    sDictBCImplementationANCF = AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunctionSimple, LoadTipFunctionSimple, length=length, rhoA=beamBCImplementationNR.rhoA, EI=beamBCImplementationNR.EI, EA=beamBCImplementationNR.EA,
+                                                                              nElementsANCF=nElementsANCF, mCoordGround=mCoordGround, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeBCImplementationANCFList,
+                                                                              beamNodeReferencePositionList=beamBCImplementationNR.nodeReferencePositionsList)
+        
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # add beam NR
+    mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
+    beamBCImplementationNR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
+                                               slidingJointFunction=SlidingJointFunctionSimple,
+                                               loadTipFunction=LoadTipFunctionSimple)
+    sCoordinatesBCImplementationNR, sCoordinates_tBCImplementationNR = beamBCImplementationNR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # add beam PMR
+    beamBCImplementationPMR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
+                                                slidingJointFunction=SlidingJointFunctionSimple,
+                                                loadTipFunction=LoadTipFunctionSimple)
+    beamBCImplementationPMR.GlobalReduceBeamWrapper(nGlobalModes=18, nSnapshots=6, nEigenmodesPerSnapshot=6)
+    sCoordinatesBCImplementationPMR, sCoordinates_tBCImplementationPMR = beamBCImplementationPMR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # simulate
+    mbs.Assemble()
+    simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
+    mbs.SolveDynamic(simulationSettings=simulationSettings)
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # get outputs
+    # ANCF
+    outputDictBCImplementationANCF = GetOutputDictANCFFromSDictANCF(mbs, sDictANCF=sDictBCImplementationANCF, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeBCImplementationANCFList, verbose=True)
+    # NR
+    nTimeSteps, time, qBCimplementationNR, q_tBCImplementationNR = beamBCImplementationNR.GetTimeAndCoordinates(mbs, sCoordinatesBCImplementationNR, sCoordinates_tBCImplementationNR)
+    # PMR
+    _, _, qBCImplementationPMR, q_tBCImplementationPMR = beamBCImplementationPMR.GetTimeAndCoordinates(mbs, sCoordinatesBCImplementationPMR, sCoordinates_tBCImplementationPMR)
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # compute energies over time
+    EBCImplementationANCF = GetKineticAndStrainAndPotentialANCFEnergyFromOutputDictANCF(outputDictBCImplementationANCF, nTimeSteps=nTimeSteps, rhoA=beamBCImplementationNR.rhoA, LoadTipFunction=LoadTipFunctionSimple,
+                                                                                        length=length, nBeamElements=nElementsBeam, sensorsWritePeriod=simulationSettings.solutionSettings.sensorsWritePeriod)
+    # NR
+    EBCImplementationNR = beamBCImplementationNR.GetKineticAndStrainAndPotentialBeamEnergy(qBCimplementationNR, q_tBCImplementationNR, sensorWritePeriod=simulationSettings.solutionSettings.sensorsWritePeriod)
+    # PMR
+    EBCImplementationPMR = beamBCImplementationPMR.GetKineticAndStrainAndPotentialBeamEnergy(qBCImplementationPMR, q_tBCImplementationPMR, sensorWritePeriod=simulationSettings.solutionSettings.sensorsWritePeriod)
+    
+    #%%
+    # plot
+    markerInterval = 150
+    figEnergyOverTime, axEnergyOverTime = plt.subplots(1, 1, figsize=[textWidth, 2.5])
+    markEvery = (0, markerInterval)
+    axEnergyOverTime.plot(time, EBCImplementationANCF, markerList[0], label=labelList[0], markevery=markEvery, color=standardColors[0])
+    markEvery = (int(markerInterval/3), markerInterval)
+    axEnergyOverTime.plot(time, EBCImplementationNR, markerList[1], label=labelList[1], markevery=markEvery, color=standardColors[1])
+    markEvery = (int(2*markerInterval/3), markerInterval)
+    axEnergyOverTime.plot(time, EBCImplementationPMR, markerList[2], label=labelList[2], markevery=markEvery, color=standardColors[2])
+    axEnergyOverTime.set_xlabel(timeStr)
+    axEnergyOverTime.set_ylabel('Hamiltonian of the system in J')
+    axEnergyOverTime.axvspan(startTime, stopTime, color='gray', alpha=0.2, label=slidingStr)
+    axEnergyOverTime.legend()
+    axEnergyOverTime.grid()
+    SaveFig(figEnergyOverTime, figPath, 'E_hamiltonian', closeFig=False)
+
+#%%
+beamStrainEnergyPMR = EulerBernulliBeam(beamTemplate=beamTemplateRubber)
+eigenmodesLiftedAndMassNormalizedList = beamStrainEnergyPMR.GetGlobalMassNormalizedEigenmodesListForNumberOfConstrainedNodes(nNodesConstrained=23,
+                                                                                                                             nEigenmodes=1,
+                                                                                                                             verbose=True)
+globalReductionBasisInitial = beamStrainEnergyPMR.GetGlobalReductionBasisUsingEigenmodesList(eigenmodesList=eigenmodesLiftedAndMassNormalizedList,
+                                                                                             nGlobalModes=18, verbose=True)
+figure = beamStrainEnergyPMR.PlotEigenmodesSets(eigenmodesList=[globalReductionBasisInitial], nodeNumbersConstrainedList=[],
+                                       nEigenmodesToPlot=4, easyPlotting=True)
+

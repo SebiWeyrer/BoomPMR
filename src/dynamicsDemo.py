@@ -291,14 +291,17 @@ for ax in axCoordinatesOverTime[-1, :]:
 plt.tight_layout()
 
 #%% plot the y-displacement of the tip
-markEvery = 10
+markerInterval = 30
 figTipDisplacementOverTime, axTipDisplacementOverTime = plt.subplots(1, 1, figsize=[8, 4])
+markEvery = (0, markerInterval)
 axTipDisplacementOverTime.plot(time, outputDictANCF['OutputVariableType.Displacement'][:, -2],
                                markerList[0], label=labelList[0], markevery=markEvery,
                                color=standardColors[0])
+markEvery = (int(markerInterval/3), markerInterval)
 axTipDisplacementOverTime.plot(time, qNR[:, -2],
                                markerList[1], label=labelList[1], markevery=markEvery,
                                color=standardColors[1])
+markEvery = (int(2*markerInterval/3), markerInterval)
 axTipDisplacementOverTime.plot(time, qPMR[:, -2],
                                markerList[2], label=labelList[2], markevery=markEvery,
                                color=standardColors[2])

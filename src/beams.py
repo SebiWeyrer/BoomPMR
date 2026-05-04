@@ -289,6 +289,9 @@ class EulerBernulliBeam:
     def UFForce(self, mbs, t, itemNumber, p, p_t):
         f = np.zeros(self.nDOFs)
         f[-2] = self.LoadTipFunction(None, t, None)
+        # HACK
+        f[10*self.nDOFsPerNode+1] = self.LoadTipFunction(None, t, None)
+        # HACK
         fRed = self.reductionBasis.T @ f
         return fRed
     
@@ -438,14 +441,14 @@ class EulerBernulliBeam:
                 if i == 0:
                     linesForLegend.append(line)
                     labelsForLegend.append('mode ' + str(j+1))
-            if not easyPlotting:
-                axs[i, 0].plot(0, 0, 'o', color='k')
-                axs[i, 0].plot(nodeNumbersConstrainedList[i], 0, 'o', color='k')
-            axs[i, 1-offset].plot(0, 0, 'o', color='k')
-            axs[i, 1-offset].plot(nodeNumbersConstrainedList[i], 0, 'o', color='k')
-            axs[i, 2-offset].plot(0, 0, 'o', color='k')
-            axs[i, 2-offset].plot(nodeNumbersConstrainedList[i], 0, 'o', color='k')
-            
+            if len(nodeNumbersConstrainedList) != 0:
+                if not easyPlotting:
+                    axs[i, 0].plot(0, 0, 'o', color='k')
+                    axs[i, 0].plot(nodeNumbersConstrainedList[i], 0, 'o', color='k')
+                axs[i, 1-offset].plot(0, 0, 'o', color='k')
+                axs[i, 1-offset].plot(nodeNumbersConstrainedList[i], 0, 'o', color='k')
+                axs[i, 2-offset].plot(0, 0, 'o', color='k')
+                axs[i, 2-offset].plot(nodeNumbersConstrainedList[i], 0, 'o', color='k')
             if not easyPlotting:
                 axs[i, 0].grid()
             axs[i, 1-offset].grid()
