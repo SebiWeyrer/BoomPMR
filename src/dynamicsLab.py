@@ -23,7 +23,7 @@ print('EXUDYN says hello with version', exu.config.Version() + '.')
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # decide whether only to load results or produce them
-onlyLoadResults = False # if False, expect long execution time due to expensive tests
+onlyLoadResults = True # if False, expect long execution time due to expensive tests
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # setup of 'test' beams with which the experiments are made (and ANCF reference settings)
@@ -290,7 +290,7 @@ resultsDictConvergenceAnalysis = GetResultsDictFromPKLFile(resultsFileName, 'con
 nElementsANCFList = resultsDictConvergenceAnalysis['nElementsANCFList']
 nDOFsANCFList = (nElementsANCFList + 1) * 4 # 4 DOfs per node
 nElementsNRList = resultsDictConvergenceAnalysis['nElementsNRList']
-nDOFsNRList = (nElementsNRList + 1) * beamConvergenceAnalysisNR.nDOFsPerNode # 3 DOfs per node
+nDOFsNRList = (nElementsNRList + 1) * 3 # 3 DOfs per node
 errorConvergenceAnalysisANCFList = resultsDictConvergenceAnalysis['errorConvergenceAnalysisANCFList']
 errorConvergenceAnalysisNRList = resultsDictConvergenceAnalysis['errorConvergenceAnalysisNRList']
 figConvergenceAnalysis, axConvergenceAnalysis = plt.subplots(1, 1, figsize=[textWidth, 2.5])
@@ -307,10 +307,10 @@ PrintHeadlineToConsole(text='Reduction Error')
 if not onlyLoadResults:
     # determine combinations that should be tested
     nSnapshotsList = np.arange(1, 31, 1)
-    nEigenmodesPerSnapshotList = np.arange(1, 31, 1)
+    nEigenmodesPerSnapshotList = np.arange(1, 16, 1)
     nMinGlobalModes = 3
-    nMaxGlobalModes = 60
-    nGlobalModesEvaluationRange = [15, 20]
+    nMaxGlobalModes = 120
+    nGlobalModesEvaluationRange = [16, 20]
     nGlobalModesEvaluation = nGlobalModesEvaluationRange[1] - nGlobalModesEvaluationRange[0] + 1
     pairsToInvestigateList = []
     nGlobalModesToComputePerPairList = []
@@ -413,27 +413,26 @@ nEigenmodesPerSnapshotList = resultsDictReductionError['nEigenmodesPerSnapshotLi
 pairsToInvestigateList = resultsDictReductionError['pairsToInvestigateList']
 tipMeanDisplacementErrorReductionErrorList = resultsDictReductionError['tipMeanDisplacementErrorReductionErrorList']
 beamMeanDispacementNormalizedErrorReductionErrorList = resultsDictReductionError['beamMeanDispacementNormalizedErrorReductionErrorList']
-tipMeanDisplacementErrorList = np.full([len(nEigenmodesPerSnapshotList), len(nSnapshotsList)], np.nan)
+tipMeanDisplacementErrorMatrix = np.full([len(nEigenmodesPerSnapshotList), len(nSnapshotsList)], np.nan)
 beamMeanDisplacementErrorMatrix = np.full([len(nEigenmodesPerSnapshotList), len(nSnapshotsList)], np.nan)
 for i, pair in enumerate(pairsToInvestigateList):
     nSnapshots = pair[0]
     nEigenmodesPerSnapshot = pair[1]
     idxSnapshot = np.where(nSnapshotsList == nSnapshots)
     idxEigenmodesPerSnapshot = np.where(nEigenmodesPerSnapshotList == nEigenmodesPerSnapshot)
-    tipMeanDisplacementErrorList[idxEigenmodesPerSnapshot, idxSnapshot] = tipMeanDisplacementErrorReductionErrorList[i]
+    tipMeanDisplacementErrorMatrix[idxEigenmodesPerSnapshot, idxSnapshot] = tipMeanDisplacementErrorReductionErrorList[i]
     beamMeanDisplacementErrorMatrix[idxEigenmodesPerSnapshot, idxSnapshot] = beamMeanDispacementNormalizedErrorReductionErrorList[i]
 figReductionError, axReductionError = plt.subplots(1, 1, figsize=[textWidth, 3.5])
+# im = axReductionError.imshow(tipMeanDisplacementErrorMatrix, cmap='RdYlGn_r')
 im = axReductionError.imshow(beamMeanDisplacementErrorMatrix, cmap='RdYlGn_r', vmin=0, vmax=1)
-axReductionError.set_xticks(nSnapshotsList-1)
+axReductionError.set_xticks(nSnapshotsList - 1)
 axReductionError.set_xticklabels(nSnapshotsList)
-axReductionError.set_yticks(nEigenmodesPerSnapshotList-1)
+axReductionError.set_yticks(nEigenmodesPerSnapshotList - 1)
 axReductionError.set_yticklabels(nEigenmodesPerSnapshotList)
-axReductionError.invert_yaxis() # this we need because of how a matrix is filled up ...
+axReductionError.invert_yaxis()
 axReductionError.set_xlabel(r'number $n_\mathrm{snap.}$ of snapshots')
 axReductionError.set_ylabel(r'number $r_\mathrm{snap.}$ of eigenmodes per snapshot')
 plt.colorbar(im, label='normalized error beam y-displacement')
-axReductionError.set_axisbelow(True)
-plt.tight_layout()
 SaveFig(figReductionError, figPath, 'E_normalizedBeamDisplacementHeatmap', closeFig=False)
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
