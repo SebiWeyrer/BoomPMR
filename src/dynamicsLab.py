@@ -14,6 +14,7 @@ import numpy as np
 import time as tm
 import exudyn as exu
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from exudyn.utilities import *
 from beams import EulerBernulliBeam, BeamTemplate
 from utilities import *
@@ -23,7 +24,7 @@ print('EXUDYN says hello with version', exu.config.Version() + '.')
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # decide whether only to load results or produce them
-onlyLoadResults = False # if False, expect long execution time due to expensive tests
+onlyLoadResults = True # if False, expect long execution time due to expensive tests
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # setup of 'test' beams with which the experiments are made (and ANCF reference settings)
@@ -411,10 +412,13 @@ resultsDictReductionError = GetResultsDictFromPKLFile(resultsFileName, 'reductio
 nSnapshotsList = resultsDictReductionError['nSnapshotsList']
 nEigenmodesPerSnapshotList = resultsDictReductionError['nEigenmodesPerSnapshotList']
 pairsToInvestigateList = resultsDictReductionError['pairsToInvestigateList']
+tipDisplacementErrorReductionErrorList = resultsDictReductionError['tipDisplacementErrorReductionErrorList']
 tipMeanDisplacementErrorReductionErrorList = resultsDictReductionError['tipMeanDisplacementErrorReductionErrorList']
+beamDisplacementNormalizedErrorReductionErrorList = resultsDictReductionError['beamDisplacementNormalizedErrorReductionErrorList']
 beamMeanDispacementNormalizedErrorReductionErrorList = resultsDictReductionError['beamMeanDispacementNormalizedErrorReductionErrorList']
 tipMeanDisplacementErrorMatrix = np.full([len(nEigenmodesPerSnapshotList), len(nSnapshotsList)], np.nan)
 beamMeanDisplacementErrorMatrix = np.full([len(nEigenmodesPerSnapshotList), len(nSnapshotsList)], np.nan)
+beamMinDisplacementErrorMatrix = np.full([len(nEigenmodesPerSnapshotList), len(nSnapshotsList)], np.nan)
 for i, pair in enumerate(pairsToInvestigateList):
     nSnapshots = pair[0]
     nEigenmodesPerSnapshot = pair[1]
@@ -422,6 +426,7 @@ for i, pair in enumerate(pairsToInvestigateList):
     idxEigenmodesPerSnapshot = np.where(nEigenmodesPerSnapshotList == nEigenmodesPerSnapshot)
     tipMeanDisplacementErrorMatrix[idxEigenmodesPerSnapshot, idxSnapshot] = tipMeanDisplacementErrorReductionErrorList[i]
     beamMeanDisplacementErrorMatrix[idxEigenmodesPerSnapshot, idxSnapshot] = beamMeanDispacementNormalizedErrorReductionErrorList[i]
+    beamMinDisplacementErrorMatrix[idxEigenmodesPerSnapshot, idxSnapshot] = np.min(beamDisplacementNormalizedErrorReductionErrorList[i])
 figReductionError, axReductionError = plt.subplots(1, 1, figsize=[textWidth, 3.5])
 # im = axReductionError.imshow(tipMeanDisplacementErrorMatrix, cmap='RdYlGn_r')
 im = axReductionError.imshow(beamMeanDisplacementErrorMatrix, cmap='RdYlGn_r', vmin=0, vmax=1)
@@ -432,6 +437,12 @@ axReductionError.set_yticklabels(nEigenmodesPerSnapshotList)
 axReductionError.invert_yaxis()
 axReductionError.set_xlabel(r'number $n_\mathrm{snap.}$ of snapshots')
 axReductionError.set_ylabel(r'number $r_\mathrm{snap.}$ of eigenmodes per snapshot')
+nLowest = 10
+flatIdx = np.argsort(beamMeanDisplacementErrorMatrix, axis=None)[:nLowest]
+rows, cols = np.unravel_index(flatIdx, beamMeanDisplacementErrorMatrix.shape)
+for r, c in zip(rows, cols):
+    axReductionError.add_patch(mpatches.Rectangle((c - 0.5, r - 0.5), 1, 1,
+                                                  linewidth=1.5, edgecolor='black', facecolor='none', zorder=5))
 plt.colorbar(im, label='normalized error beam y-displacement')
 SaveFig(figReductionError, figPath, 'E_normalizedBeamDisplacementHeatmap', closeFig=False)
 
