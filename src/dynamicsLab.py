@@ -23,7 +23,7 @@ print('EXUDYN says hello with version', exu.config.Version() + '.')
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # decide whether only to load results or produce them
-onlyLoadResults = True # if False, expect long execution time due to expensive tests
+onlyLoadResults = False # if False, expect long execution time due to expensive tests
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # setup of 'test' beams with which the experiments are made (and ANCF reference settings)
@@ -306,8 +306,8 @@ SaveFig(figConvergenceAnalysis, figPath, 'E_convergenceAnalysis', closeFig=False
 PrintHeadlineToConsole(text='Reduction Error')
 if not onlyLoadResults:
     # determine combinations that should be tested
-    nSnapshotsList = np.arange(1, 31, 1)
-    nEigenmodesPerSnapshotList = np.arange(1, 16, 1)
+    nSnapshotsList = np.arange(1, 30+1, 1)
+    nEigenmodesPerSnapshotList = np.arange(1, 16+1, 1)
     nMinGlobalModes = 3
     nMaxGlobalModes = 120
     nGlobalModesEvaluationRange = [16, 20]
