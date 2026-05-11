@@ -289,9 +289,6 @@ class EulerBernulliBeam:
     def UFForce(self, mbs, t, itemNumber, p, p_t):
         f = np.zeros(self.nDOFs)
         f[-2] = self.LoadTipFunction(None, t, None)
-        # HACK
-        f[10*self.nDOFsPerNode+1] = self.LoadTipFunction(None, t, None)
-        # HACK
         fRed = self.reductionBasis.T @ f
         return fRed
     

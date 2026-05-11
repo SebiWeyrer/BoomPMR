@@ -1,12 +1,17 @@
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #
-# Details:  ANCF ... ANCF beam; beam ... Euler-Bernoulli beam (NR or PMR)
+# Details:  beam-things always start with "beam", e.g. beamTemplate
+#           variables are always indicated with either ANCF, NR or PMR
+#           a reduced beam is beam...PMR
 # Author:   Sebastian Weyrer
-# Date:     2026-05-03
+# Date:     2026-05-11
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+import sys
 import pickle
+import socket
+import platform
 import numpy as np
 import time as tm
 import exudyn as exu
@@ -20,7 +25,7 @@ print('EXUDYN says hello with version', exu.config.Version() + '.')
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # decide whether only to load results or produce them
-onlyLoadResults = True # if False, expect long execution time due to expensive tests
+onlyLoadResults = False # if False, expect long execution time due to expensive tests
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # setup of 'test' beams with which the experiments are made (and ANCF reference settings)
@@ -48,15 +53,25 @@ parentDir = Path.cwd().parent
 figPath = parentDir / 'LaTeX' / 'figures'
 resultsFileName = 'results.pkl'
 if not onlyLoadResults:
-    print('Creating empty results file to save results.')
-    data = {'metaInfo': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'results':{}}
+    PrintHeadlineToConsole(text='Creating empty results file to save results')
+    data = {
+        'metaInfo': {
+            'created': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'hostname': socket.gethostname(),
+            'platform': platform.platform(),
+            'pythonVersion': sys.version,
+            'exudynVersion': exu.config.Version(),
+        },
+        'results': {}
+    }
     with open(resultsFileName, 'wb') as f:
         pickle.dump(data, f)
 else:
     with open(resultsFileName, 'rb') as f:
         data = pickle.load(f)
-    print(f"Loading existing results created on {data['metaInfo']}.")
+    PrintHeadlineToConsole(text='Loading Existing Results')
+    for info in data['metaInfo']:
+        print(info + ': ' + data['metaInfo'][info])
     
 #%% plot interpolation of y displacement within beam element
 PrintHeadlineToConsole(text='Plot Example Interpolation for Illustration')
@@ -187,8 +202,11 @@ if not onlyLoadResults:
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # ANCF elements
-    nElementsANCFList = np.linspace(2, 44, 22, dtype=int) # hard coded!
+    nElementsANCFList = np.linspace(2, 44, 22, dtype=int)
     tipDisplacementConvergenceAnalysisANCFList = []
+    startTime = tm.time()
+    nCompletedAnalyses = 0
+    nAnalyses= len(nElementsANCFList)
     for i, nElementsANCF in enumerate(nElementsANCFList):
         # retreive reference solution via ANCF beam with sliding joint
         SC = exu.SystemContainer()
@@ -206,18 +224,31 @@ if not onlyLoadResults:
         mbs.SolveDynamic(simulationSettings=simulationSettings)
         outputDictConvergenceAnalysisANCF = GetOutputDictANCFFromSDictANCF(mbs, sDictANCF=sDictConvergenceAnalysisANCF, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeConvergenceAnalysisANCFList)
         tipDisplacementConvergenceAnalysisANCFList += [outputDictConvergenceAnalysisANCF['OutputVariableType.Displacement'][:, -2]]
-        print('ANCF convergence analysis: Finished', i+1, '/', len(nElementsANCFList), 'analyses.')
-    errorListConvergenceAnalysisANCF = []
+        nCompletedAnalyses += 1
+        
+        #++++++++++++++++++++++++++++++++++++++++++++++++++
+        # track progress
+        neededTime = (tm.time() - startTime) / nCompletedAnalyses
+        nAnalysesToGo = nAnalyses - nCompletedAnalyses
+        timeToGo = nAnalysesToGo * neededTime
+        hoursToGo = int(timeToGo) // 3600
+        minutesToGo = (int(timeToGo) % 3600) // 60
+        secondsToGo = int(timeToGo) % 60
+        print(f'Completed {(nCompletedAnalyses/nAnalyses) * 100:05.1f}%. ETA: {hoursToGo:02d}:{minutesToGo:02d}:{secondsToGo:02d}')
+    errorConvergenceAnalysisANCFList = []
     for tipDisplacementConvergenceAnalysisANCF in tipDisplacementConvergenceAnalysisANCFList[:-1]:
-        errorListConvergenceAnalysisANCF += [AbsError(tipDisplacementConvergenceAnalysisANCF, tipDisplacementConvergenceAnalysisANCFList[-1])]
-    errorListConvergenceAnalysisANCF += [0]
+        errorConvergenceAnalysisANCFList += [AbsError(tipDisplacementConvergenceAnalysisANCF, tipDisplacementConvergenceAnalysisANCFList[-1])]
+    errorConvergenceAnalysisANCFList += [0]
     AppendResultsToPKLFile(resultsFileName, 'convergenceAnalysis', {'nElementsANCFList': nElementsANCFList,
-                                                                    'errorListConvergenceAnalysisANCF': errorListConvergenceAnalysisANCF})
+                                                                    'errorConvergenceAnalysisANCFList': errorConvergenceAnalysisANCFList})
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # beam elements
-    nElementsBeamList = np.linspace(2, 60, 30, dtype=int) # hard coded!
-    tipDisplacementConvergenceAnalysisBeamList = []
+    nElementsBeamList = np.linspace(2, 60, 30, dtype=int)
+    tipDisplacementConvergenceAnalysisNRList = []
+    startTime = tm.time()
+    nCompletedAnalyses = 0
+    nAnalyses= len(nElementsBeamList)
     for i, nElementsBeam in enumerate(nElementsBeamList):
         # initialize beam
         SC = exu.SystemContainer()
@@ -231,7 +262,7 @@ if not onlyLoadResults:
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
         # add beam to mbs
-        sCoordinatesConvergenceAnalysisBeam, sCoordinates_tConvergenceAnalysisBeam = beamConvergenceAnalysisNR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
+        sCoordinatesConvergenceAnalysisNR, sCoordinates_tConvergenceAnalysisNR = beamConvergenceAnalysisNR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
         # simulate dynamically (WYSWYS)
@@ -241,15 +272,25 @@ if not onlyLoadResults:
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
         # get results
-        _, time, qConvergenceAnalysis, q_tConvergenceAnalysis = beamConvergenceAnalysisNR.GetTimeAndCoordinates(mbs, sCoordinatesConvergenceAnalysisBeam, sCoordinates_tConvergenceAnalysisBeam)
-        tipDisplacementConvergenceAnalysisBeamList += [qConvergenceAnalysis[:, -2]]
-        print('Beam convergence analysis: Finished', i+1, '/', len(nElementsBeamList), 'analyses.')
-    errorListConvergenceAnalysisBeam = []
-    for tipDisplacementConvergenceAnalysisBeam in tipDisplacementConvergenceAnalysisBeamList[:-1]:
-        errorListConvergenceAnalysisBeam += [AbsError(tipDisplacementConvergenceAnalysisBeam, tipDisplacementConvergenceAnalysisBeamList[-1])]
-    errorListConvergenceAnalysisBeam += [0]
+        _, time, qConvergenceAnalysisNR, q_tConvergenceAnalysisNR = beamConvergenceAnalysisNR.GetTimeAndCoordinates(mbs, sCoordinatesConvergenceAnalysisNR, sCoordinates_tConvergenceAnalysisNR)
+        tipDisplacementConvergenceAnalysisNRList += [qConvergenceAnalysisNR[:, -2]]
+        nCompletedAnalyses += 1
+        
+        #++++++++++++++++++++++++++++++++++++++++++++++++++
+        # track progress
+        neededTime = (tm.time() - startTime) / nCompletedAnalyses
+        nAnalysesToGo = nAnalyses - nCompletedAnalyses
+        timeToGo = nAnalysesToGo * neededTime
+        hoursToGo = int(timeToGo) // 3600
+        minutesToGo = (int(timeToGo) % 3600) // 60
+        secondsToGo = int(timeToGo) % 60
+        print(f'Completed {(nCompletedAnalyses/nAnalyses) * 100:05.1f}%. ETA: {hoursToGo:02d}:{minutesToGo:02d}:{secondsToGo:02d}')
+    errorConvergenceAnalysisNRList = []
+    for tipDisplacementConvergenceAnalysisNR in tipDisplacementConvergenceAnalysisNRList[:-1]:
+        errorConvergenceAnalysisNRList += [AbsError(tipDisplacementConvergenceAnalysisNR, tipDisplacementConvergenceAnalysisNRList[-1])]
+    errorConvergenceAnalysisNRList += [0]
     AppendResultsToPKLFile(resultsFileName, 'convergenceAnalysis', {'nElementsBeamList': nElementsBeamList,
-                                                                    'errorListConvergenceAnalysisBeam': errorListConvergenceAnalysisBeam})
+                                                                    'errorConvergenceAnalysisNRList': errorConvergenceAnalysisNRList})
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # for debugging: plot displacement of tip
@@ -257,26 +298,178 @@ if not onlyLoadResults:
         figDisplacementForDebugging, axDisplacementForDebugging = plt.subplots(1, 1, figsize=[textWidth, 3])
         for i in range(len(nElementsBeamList)):
             axDisplacementForDebugging.plot(time, tipDisplacementConvergenceAnalysisANCFList[i], label='ANCF ele: ' + str(nElementsANCFList[i]))
-            axDisplacementForDebugging.plot(time, tipDisplacementConvergenceAnalysisBeamList[i], label='Beam ele: ' + str(nElementsBeamList[i]))
+            axDisplacementForDebugging.plot(time, tipDisplacementConvergenceAnalysisNRList[i], label='Beam ele: ' + str(nElementsBeamList[i]))
         axDisplacementForDebugging.legend()
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # plot the convergence analysis
 resultsDictConvergenceAnalysis = GetResultsDictFromPKLFile(resultsFileName, 'convergenceAnalysis')
 nElementsANCFList = resultsDictConvergenceAnalysis['nElementsANCFList']
+nDOFsANCFList = (nElementsANCFList + 1) * 4 # 4 DOfs per node
 nElementsBeamList = resultsDictConvergenceAnalysis['nElementsBeamList']
-errorListConvergenceAnalysisANCF = resultsDictConvergenceAnalysis['errorListConvergenceAnalysisANCF']
-errorListConvergenceAnalysisBeam = resultsDictConvergenceAnalysis['errorListConvergenceAnalysisBeam']
-figConvergenceAnalysisANCF, axConvergenceAnalysisANCF = plt.subplots(1, 1, figsize=[textWidth, 2.5])
-axConvergenceAnalysisANCF.loglog(nElementsANCFList[:-1], errorListConvergenceAnalysisANCF[:-1], '-o', label=labelList[0], color=standardColors[0])
-axConvergenceAnalysisANCF.loglog(nElementsBeamList[:-1], errorListConvergenceAnalysisBeam[:-1], '-*', label=labelList[1], color=standardColors[1])
-axConvergenceAnalysisANCF.grid()
-axConvergenceAnalysisANCF.legend()
-axConvergenceAnalysisANCF.set_xlabel('number of elements')
-axConvergenceAnalysisANCF.set_ylabel('abs. error tip y-displacement in m')
-SaveFig(figConvergenceAnalysisANCF, figPath, 'E_convergenceAnalysis', closeFig=False)
+nDOFsNRList = (nElementsANCFList + 1) * beamConvergenceAnalysisNR.nDOFsPerNode # 3 DOfs per node
+errorConvergenceAnalysisANCFList = resultsDictConvergenceAnalysis['errorConvergenceAnalysisANCFList']
+errorConvergenceAnalysisNRList = resultsDictConvergenceAnalysis['errorConvergenceAnalysisNRList']
+figConvergenceAnalysis, axConvergenceAnalysis = plt.subplots(1, 1, figsize=[textWidth, 2.5])
+axConvergenceAnalysis.loglog(nDOFsANCFList[:-1], errorConvergenceAnalysisANCFList[:-1], '-o', label=labelList[0], color=standardColors[0])
+axConvergenceAnalysis.loglog(nDOFsNRList[:-1], errorConvergenceAnalysisNRList[:-1], '-*', label=labelList[1], color=standardColors[1])
+axConvergenceAnalysis.grid()
+axConvergenceAnalysis.legend()
+axConvergenceAnalysis.set_xlabel('number of DOFs')
+axConvergenceAnalysis.set_ylabel('abs. error transversal tip displacement in m')
+SaveFig(figConvergenceAnalysis, figPath, 'E_convergenceAnalysis', closeFig=False)
 
-#%% compute strain eneregy error
+#%% compute displacement error of globally reduced beam vs. non-reduced beam to obtain reduction error
+PrintHeadlineToConsole(text='Reduction Error')
+if not onlyLoadResults:
+    # determine combinations that should be tested
+    nSnapshotsList = np.arange(1, 31, 1)
+    nEigenmodesPerSnapshotList = np.arange(1, 31, 1)
+    nMinGlobalModes = 3
+    nMaxGlobalModes = 60
+    nGlobalModesEvaluationRange = [15, 20]
+    nGlobalModesEvaluation = nGlobalModesEvaluationRange[1] - nGlobalModesEvaluationRange[0] + 1
+    pairsToInvestigateList = []
+    nGlobalModesToComputePerPairList = []
+    nAnalyses = 0
+    for nSnapshots in nSnapshotsList:
+        for nEigenmodesPerSnapshot in nEigenmodesPerSnapshotList:
+            product = nSnapshots * nEigenmodesPerSnapshot
+            if product >= nMinGlobalModes and product <= nMaxGlobalModes:
+                pairsToInvestigateList += [[nSnapshots, nEigenmodesPerSnapshot]]
+                if product >= nGlobalModesEvaluationRange[1]:
+                    nGlobalModesToComputePerPairList += [np.arange(nGlobalModesEvaluationRange[0], nGlobalModesEvaluationRange[1]+1, 1)]
+                elif product >= nMinGlobalModes + nGlobalModesEvaluation:
+                    nGlobalModesToComputePerPairList += [np.arange(product-nGlobalModesEvaluation+1, product+1, 1)]
+                elif product >= nMinGlobalModes + 1:
+                    nGlobalModesToComputePerPairList += [np.arange(nMinGlobalModes, product+1, 1)]
+                elif product == nMinGlobalModes:
+                    nGlobalModesToComputePerPairList += [np.array([product])]
+                else:
+                    print('WARNING: Reduction error computation setup failed!')
+                nAnalyses += len(nGlobalModesToComputePerPairList[-1])
+    print('Starting a total of ' + str(nAnalyses) + ' analyses.')
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # offline compute reference coordinates
+    SC = exu.SystemContainer()
+    mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
+    nGround = mbs.AddNode(NodePointGround())
+    mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
+    beamReductionErrorNR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
+                                             slidingJointFunction=SlidingJointFunctionEvolved,
+                                             loadTipFunction=LoadTipFunctionEvolved)
+    sCoordinatesReductionErrorNR, sCoordinates_tReductionErrorNR = beamReductionErrorNR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
+    mbs.Assemble()
+    simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
+    mbs.SolveDynamic(simulationSettings=simulationSettings)
+    _, time, qReductionErrorNR, q_tReductionErrorNR = beamReductionErrorNR.GetTimeAndCoordinates(mbs, sCoordinatesReductionErrorNR, sCoordinates_tReductionErrorNR)
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # now process the pairs that should be investigated
+    nCompletedAnalyses = 0
+    tipDisplacementErrorReductionErrorList = []
+    tipMeanDisplacementErrorReductionErrorList = []
+    beamDisplacementNormalizedErrorReductionErrorList = []
+    beamMeanDispacementNormalizedErrorReductionErrorList = []
+    startTime = tm.time()
+    for i, pair in enumerate(pairsToInvestigateList):
+        nSnapshots = pair[0]
+        nEigenmodesPerSnapshot = pair[1]
+        tipDisplacementError = []
+        beamDisplacementNormalizedError = []
+        for nGlobalModes in nGlobalModesToComputePerPairList[i]:
+            # initialize beam
+            SC = exu.SystemContainer()
+            mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
+            nGround = mbs.AddNode(NodePointGround())
+            mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
+            beamReductionErrorPMR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
+                                                      slidingJointFunction=SlidingJointFunctionEvolved,
+                                                      loadTipFunction=LoadTipFunctionEvolved)
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # GLOBALLY reduced beam and add it
+            # we start always with the full globalReductionBasisInitial
+            beamReductionErrorPMR.GlobalReduceBeamWrapper(nSnapshots=nSnapshots, nEigenmodesPerSnapshot=nEigenmodesPerSnapshot,
+                                                          nGlobalModes=nGlobalModes)
+            sCoordinatesReductionErrorPMR, sCoordinates_tReductionErrorPMR = beamReductionErrorPMR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # simulate dynamically (WYSWYS)
+            mbs.Assemble()
+            simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
+            mbs.SolveDynamic(simulationSettings=simulationSettings)
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # get results
+            _, time, qReductionErrorPMR, q_tReductionErrorPMR = beamReductionErrorPMR.GetTimeAndCoordinates(mbs, sCoordinatesReductionErrorPMR, sCoordinates_tReductionErrorPMR)
+            tipDisplacementError += [AbsError(qReductionErrorPMR[:, -2], qReductionErrorNR[:, -2])]
+            beamDisplacementNormalizedError += [NRMSEVector(qReductionErrorPMR[:, 1::beamReductionErrorPMR.nDOFsPerNode], qReductionErrorNR[:, 1::beamReductionErrorNR.nDOFsPerNode])]
+            nCompletedAnalyses += 1
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # track progress
+            neededTime = (tm.time() - startTime) / nCompletedAnalyses
+            nAnalysesToGo = nAnalyses - nCompletedAnalyses
+            timeToGo = nAnalysesToGo * neededTime
+            hoursToGo = int(timeToGo) // 3600
+            minutesToGo = (int(timeToGo) % 3600) // 60
+            secondsToGo = int(timeToGo) % 60
+            print(f'Completed {(nCompletedAnalyses/nAnalyses) * 100:05.1f}%. ETA: {hoursToGo:02d}:{minutesToGo:02d}:{secondsToGo:02d}')
+        tipDisplacementErrorReductionErrorList += [tipDisplacementError]
+        tipMeanDisplacementErrorReductionErrorList += [np.mean(tipDisplacementError)]
+        beamDisplacementNormalizedErrorReductionErrorList += [beamDisplacementNormalizedError]
+        beamMeanDispacementNormalizedErrorReductionErrorList += [np.mean(beamDisplacementNormalizedError)]
+    AppendResultsToPKLFile(resultsFileName, 'reductionError', {'nSnapshotsList':nSnapshotsList,
+                                                               'nEigenmodesPerSnapshotList':nEigenmodesPerSnapshotList,
+                                                               'pairsToInvestigateList': pairsToInvestigateList,
+                                                               'nGlobalModesToComputePerPairList': nGlobalModesToComputePerPairList,
+                                                               'tipDisplacementErrorReductionErrorList': tipDisplacementErrorReductionErrorList,
+                                                               'tipMeanDisplacementErrorReductionErrorList':tipMeanDisplacementErrorReductionErrorList,
+                                                               'beamDisplacementNormalizedErrorReductionErrorList': beamDisplacementNormalizedErrorReductionErrorList,
+                                                               'beamMeanDispacementNormalizedErrorReductionErrorList':beamMeanDispacementNormalizedErrorReductionErrorList,
+                                                               'qReductionErrorNR': qReductionErrorNR})
+
+#++++++++++++++++++++++++++++++++++++++++++++++++++
+# plot the reduction error
+resultsDictReductionError = GetResultsDictFromPKLFile(resultsFileName, 'reductionError')
+nSnapshotsList = resultsDictReductionError['nSnapshotsList']
+nEigenmodesPerSnapshotList = resultsDictReductionError['nEigenmodesPerSnapshotList']
+pairsToInvestigateList = resultsDictReductionError['pairsToInvestigateList']
+tipMeanDisplacementErrorReductionErrorList = resultsDictReductionError['tipMeanDisplacementErrorReductionErrorList']
+beamMeanDispacementNormalizedErrorReductionErrorList = resultsDictReductionError['beamMeanDispacementNormalizedErrorReductionErrorList']
+tipMeanDisplacementErrorList = np.full([len(nEigenmodesPerSnapshotList), len(nSnapshotsList)], np.nan)
+beamMeanDisplacementErrorMatrix = np.full([len(nEigenmodesPerSnapshotList), len(nSnapshotsList)], np.nan)
+for i, pair in enumerate(pairsToInvestigateList):
+    nSnapshots = pair[0]
+    nEigenmodesPerSnapshot = pair[1]
+    idxSnapshot = np.where(nSnapshotsList == nSnapshots)
+    idxEigenmodesPerSnapshot = np.where(nEigenmodesPerSnapshotList == nEigenmodesPerSnapshot)
+    tipMeanDisplacementErrorList[idxEigenmodesPerSnapshot, idxSnapshot] = tipMeanDisplacementErrorReductionErrorList[i]
+    beamMeanDisplacementErrorMatrix[idxEigenmodesPerSnapshot, idxSnapshot] = beamMeanDispacementNormalizedErrorReductionErrorList[i]
+figReductionError, axReductionError = plt.subplots(1, 1, figsize=[textWidth, 3.5])
+im = axReductionError.imshow(beamMeanDisplacementErrorMatrix, cmap='RdYlGn_r', vmin=0, vmax=1)
+axReductionError.set_xticks(nSnapshotsList-1)
+axReductionError.set_xticklabels(nSnapshotsList)
+axReductionError.set_yticks(nEigenmodesPerSnapshotList-1)
+axReductionError.set_yticklabels(nEigenmodesPerSnapshotList)
+axReductionError.invert_yaxis() # this we need because of how a matrix is filled up ...
+axReductionError.set_xlabel(r'number $n_\mathrm{snap.}$ of snapshots')
+axReductionError.set_ylabel('number $r_\mathrm{snap.}$ of eigenmodes per snapshot')
+plt.colorbar(im, label='normalized error beam y-displacement')
+axReductionError.set_axisbelow(True)
+plt.tight_layout()
+SaveFig(figReductionError, figPath, 'E_normalizedBeamDisplacementHeatmap', closeFig=False)
+
+#++++++++++++++++++++++++++++++++++++++++++++++++++
+# get best combination for treated problem
+bestPairIndices = np.unravel_index(np.nanargmin(beamMeanDisplacementErrorMatrix), beamMeanDisplacementErrorMatrix.shape)
+nSnapshotsBest = nSnapshotsList[bestPairIndices[1]]
+nEigenmodesPerSnapshotBest = nEigenmodesPerSnapshotList[bestPairIndices[0]]
+print('Best pair: nSapshots = ' + str(nSnapshotsBest) + '; nEigenmodesPerSnapshot = ' + str(nEigenmodesPerSnapshotBest))
+
+#%% compute strain energy error
 PrintHeadlineToConsole(text='Strain Energy Error')
 if not onlyLoadResults:
     #%%
@@ -296,11 +489,15 @@ if not onlyLoadResults:
     strainEnergySumNR = beamStrainEnergySumNR.GetSumOfBeamStrainEnergy(qStrainEnergySumBeamNR)
     print('Non-reduced strain energy sum:', strainEnergySumNR, 'J.')
     
+   
+    
+    #%%
+    
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # determine combinations that should be tested
-    nGlobalModesMaxPossible = 40
-    nGlobalModesMinPossible = 15
-    nGlobalModesMaxEvaluated = 24
+    nGlobalModesMaxPossible = 50
+    nGlobalModesMinPossible = 4
+    nGlobalModesEvaluationRange = [15, 20]
     pairsToBeInvestigatedList = []
     for nSnap in range(1, nGlobalModesMaxPossible + 1):
         for rSnap in range(1, nGlobalModesMaxPossible + 1):
@@ -311,41 +508,42 @@ if not onlyLoadResults:
     pairsToBeInvestigatedList = sorted(list(set(pairsToBeInvestigatedList)))
     nPairsToBeInvestigated = len(pairsToBeInvestigatedList)
     print('Total number of combinations to investigate:', nPairsToBeInvestigated)
-    # now check how many analyses are done
+    # now check how many analyses are done and prepare variation
     nAnalyses = 0
-    nGlobalModesAnalysedList = []
+    nGlobalModesEvaluatedList = []
     for pair in pairsToBeInvestigatedList:
         nGlobalModesPossible = pair[0] * pair[1]
-        if nGlobalModesPossible <= nGlobalModesMaxEvaluated:
-            nGlobalModesEvaluated = nGlobalModesPossible
-        if nGlobalModesPossible > nGlobalModesMaxEvaluated:
-            nGlobalModesEvaluated = nGlobalModesMaxEvaluated
-        nAnalyses += nGlobalModesEvaluated
-        nGlobalModesAnalysedList += [[nGlobalModesEvaluated-i for i in range(nGlobalModesEvaluated-2)]]
+        if nGlobalModesPossible <= nGlobalModesEvaluationRange[1]:
+            nGlobalModesEvaluationStart = nGlobalModesPossible
+        else:
+            nGlobalModesEvaluationStart = nGlobalModesEvaluationRange[1]
+        nGlobalModesEvaluatedPerPairList = []
+        for i in range(nGlobalModesEvaluationRange[1]-nGlobalModesEvaluationRange[0]+1):
+            nGlobalModesEvaluation = nGlobalModesEvaluationStart - i
+            if nGlobalModesEvaluation > 2:
+                nGlobalModesEvaluatedPerPairList += [nGlobalModesEvaluation]
+        nGlobalModesEvaluatedList += [nGlobalModesEvaluatedPerPairList]
+        nAnalyses += len(nGlobalModesEvaluatedList[-1])
     print('Total number of analyses:', nAnalyses)
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # do MAIN variation
-    
-    
-    nGlobalModesUsedList = [nGlobalModesMaxTested-i for i in range(nGlobalModesMaxTested-2)]
-    nAnalyses = len(nGlobalModesUsedList) * nPairsToBeInvestigated
     strainEnergySumList = []
     nAnalysesCompleted = 0
     startTime = tm.time()
-    for pair in pairsToBeInvestigatedList:
+    for i, pair in enumerate(pairsToBeInvestigatedList):
         # OFFLINE compute initial global reduction basis
         beamStrainEnergyPMR = EulerBernulliBeam(beamTemplate=beamTemplateRubber)
         eigenmodesLiftedAndMassNormalizedList = beamStrainEnergyPMR.GetGlobalMassNormalizedEigenmodesListForNumberOfConstrainedNodes(nNodesConstrained=pair[0],
                                                                                                                                      nEigenmodes=pair[1],
                                                                                                                                      verbose=True)
         globalReductionBasisInitial = beamStrainEnergyPMR.GetGlobalReductionBasisUsingEigenmodesList(eigenmodesList=eigenmodesLiftedAndMassNormalizedList,
-                                                                                                     nGlobalModes=nGlobalModesMaxTested, verbose=True)
+                                                                                                     nGlobalModes=nGlobalModesEvaluatedList[i][0], verbose=True)
         
         #++++++++++++++++++++++++++++++++++++++++++++++++++
         # iterate over the global modes and remove them successively
         strainEnergySumForPairList = []
-        for nGlobalModesUsed in nGlobalModesUsedList:
+        for nGlobalModesUsed in nGlobalModesEvaluatedList[i]:
             # initialize beam
             SC = exu.SystemContainer()
             mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
@@ -357,6 +555,7 @@ if not onlyLoadResults:
             
             #++++++++++++++++++++++++++++++++++++++++++++++++++
             # GLOBALLY reduced beam and add it (here we can not use the wrapper for global reduction)
+            # we start always with the full globalReductionBasisInitial
             beamStrainEnergySumPMR.ReduceBeam(reductionBasis=globalReductionBasisInitial[:, 0:nGlobalModesUsed])
             sCoordinatesStrainEnergySumBeamPMR, sCoordinates_tStrainEnergySumBeamPMR = beamStrainEnergySumPMR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
             
@@ -370,7 +569,10 @@ if not onlyLoadResults:
             # get results
             _, time, qStrainEnergySumBeamPMR, q_tStrainEnergySumBeamPMR = beamStrainEnergySumPMR.GetTimeAndCoordinates(mbs, sCoordinatesStrainEnergySumBeamPMR, sCoordinates_tStrainEnergySumBeamPMR)
             strainEnergySum = beamStrainEnergySumPMR.GetSumOfBeamStrainEnergy(qStrainEnergySumBeamPMR)
-            strainEnergySumForPairList += [strainEnergySum]
+            strainEnergySumForPairList += [strainEnergySum] # this varies in length
+            
+            
+            
             nAnalysesCompleted += 1
             
             #++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -384,19 +586,67 @@ if not onlyLoadResults:
             print(f'Completed {(nAnalysesCompleted/nAnalyses) * 100:05.1f}%. ETA: {hoursToGo:02d}:{minutesToGo:02d}:{secondsToGo:02d}')
         strainEnergySumList += [strainEnergySumForPairList]
     AppendResultsToPKLFile(resultsFileName, 'strainEnergySum', {'pairsToBeInvestigatedList': pairsToBeInvestigatedList,
-                                                                'nGlobalModesUsedList': nGlobalModesUsedList,
+                                                                'nGlobalModesEvaluatedList': nGlobalModesEvaluatedList,
                                                                 'strainEnergySumNR': strainEnergySumNR,
                                                                 'strainEnergySumList': strainEnergySumList})
+    
+    #%% 
+    # compute some specific pairs to the fullest for visualization and closer inspection
+    nGlobalModesEvaluatedSpecificList = [[i for i in np.flipud(np.arange(3, 23))],
+                                         [i for i in np.flipud(np.arange(3, 23))],
+                                         [i for i in np.flipud(np.arange(3, 9))]]
+    strainEnergySumSpecificList = GetStrainEnergySumOverSimulation(beamTemplate=beamTemplateRubber,
+                                                                   slidingJointFunction=SlidingJointFunctionEvolved,
+                                                                   loadTipFunction=LoadTipFunctionEvolved,
+                                                                   pairsToBeInvestigatedList=[(6, 6), (2, 12), (8, 1)],
+                                                                   nGlobalModesEvaluatedList=nGlobalModesEvaluatedSpecificList,
+                                                                   tEnd=tEnd, h=h)
+    
+    
     #%%
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # compute and plot the errors
 resultsDictStrainEnergySum = GetResultsDictFromPKLFile(resultsFileName, 'strainEnergySum')
 pairsToBeInvestigatedList = resultsDictStrainEnergySum['pairsToBeInvestigatedList']
-nGlobalModesUsedList = resultsDictStrainEnergySum['nGlobalModesUsedList']
+nGlobalModesEvaluatedList = resultsDictStrainEnergySum['nGlobalModesEvaluatedList']
 strainEnergySumNR = resultsDictStrainEnergySum['strainEnergySumNR']
 strainEnergySumList = resultsDictStrainEnergySum['strainEnergySumList']
 nPairsToBeInvestigated = len(pairsToBeInvestigatedList)
-nGlobalModesUsed = len(nGlobalModesUsedList)
+# compute the average strain energy sum error for each pair
+averageStrainEnergySumError = []
+for i in range(nPairsToBeInvestigated):
+    strainEnergySumErrorList = []
+    for strainEnergySum in strainEnergySumList[i]:
+        strainEnergySumErrorList += [np.abs(strainEnergySumNR-strainEnergySum)]
+    averageStrainEnergySumError += [np.mean(strainEnergySumErrorList)]
+# plot the error matrix
+nSnapshotsUniqueList = sorted(list(set([p[0] for p in pairsToBeInvestigatedList])))
+nEigenmodesPerSnapshotUniqueList = sorted(list(set([p[1] for p in pairsToBeInvestigatedList])))
+errorMatrix = np.full([len(nEigenmodesPerSnapshotUniqueList), len(nSnapshotsUniqueList)], np.nan)
+for (nSnap, rSnap), error in zip(pairsToBeInvestigatedList, averageStrainEnergySumError):
+    i = nEigenmodesPerSnapshotUniqueList.index(rSnap)
+    j = nSnapshotsUniqueList.index(nSnap)
+    errorMatrix[i, j] = error
+# plot
+vmin = np.min(averageStrainEnergySumError)
+figHeatmapStrainErrorSum, axHeatmapStrainErrorSum = plt.subplots(figsize=[textWidth, 3.5])
+im = axHeatmapStrainErrorSum.imshow(errorMatrix, cmap='RdYlGn_r', aspect='auto',
+                                    vmin=vmin)
+axHeatmapStrainErrorSum.set_xticks(range(len(nSnapshotsUniqueList)))
+axHeatmapStrainErrorSum.set_xticklabels(nSnapshotsUniqueList)
+axHeatmapStrainErrorSum.set_yticks(range(len(nEigenmodesPerSnapshotUniqueList)))
+axHeatmapStrainErrorSum.set_yticklabels(nEigenmodesPerSnapshotUniqueList)
+axHeatmapStrainErrorSum.invert_yaxis() # this we need because of how a matrix is filled up ...
+axHeatmapStrainErrorSum.set_xlabel(r'number $n_\mathrm{snap.}$ of snapshots')
+axHeatmapStrainErrorSum.set_ylabel(r'number $r_\mathrm{snap.}$ of eigenmodes per snapshot')
+# axHeatmapStrainErrorSum.plot(np.arange(nSnapshotsUniqueList[0], nSnapshotsUniqueList[-1]), np.arange(nEigenmodesPerSnapshotUniqueList[0], nEigenmodesPerSnapshotUniqueList[-1]), color='black')
+axHeatmapStrainErrorSum.text(nSnapshotsUniqueList[-1]-7, nSnapshotsUniqueList[-1]-3, r'$r_\mathrm{snap.}=n_\mathrm{snap.}$', ha='left', va='bottom')
+plt.colorbar(im, label='average strain energy sum error in J')
+axHeatmapStrainErrorSum.set_axisbelow(True)
+SaveFig(figHeatmapStrainErrorSum, figPath, 'E_strainEnergyHeatmap', closeFig=False)
+
+
+#%%
 # for each pair a line, for each mode number a column
 strainEnergySumErrorMatrix = np.zeros([nPairsToBeInvestigated, nGlobalModesUsed])
 for i in range(nPairsToBeInvestigated):
@@ -547,3 +797,16 @@ globalReductionBasisInitial = beamStrainEnergyPMR.GetGlobalReductionBasisUsingEi
 figure = beamStrainEnergyPMR.PlotEigenmodesSets(eigenmodesList=[globalReductionBasisInitial], nodeNumbersConstrainedList=[],
                                        nEigenmodesToPlot=4, easyPlotting=True)
 
+# #%%
+# qCenteredNR = qStrainEnergySumBeamNR - np.mean(qStrainEnergySumBeamNR, axis=0)
+# Q = np.fft.rfft(qCenteredNR, axis=0)
+# n = qStrainEnergySumBeamNR.shape[0]
+# freqs = np.fft.rfftfreq(n, d=simulationSettings.solutionSettings.sensorsWritePeriod)
+# amplitude = np.abs(Q) / n
+# amp_global = np.sqrt(np.mean(amplitude**2, axis=1))
+# plt.plot(freqs, amp_global)
+# plt.xlabel("Frequency [Hz]")
+# plt.ylabel("Amplitude")
+# plt.title("Global FFT of coordinates")
+# plt.grid()
+# plt.show()

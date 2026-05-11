@@ -7,6 +7,7 @@
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 import pickle
+import time as tm
 import exudyn as exu
 import exudyn.graphics as graphics
 from exudyn.utilities import *
@@ -265,6 +266,73 @@ def GetKineticAndStrainAndPotentialANCFEnergyFromOutputDictANCF(outputDictANCF, 
         EANCF[i] -= outputDictANCF['OutputVariableType.Displacement'][i, -2] * LoadTipFunction(None, i*sensorsWritePeriod, None)
     return EANCF
 
+# helper function to compute the strain energy sum for pairs of number of snapshots and number of eigenmodes per snapshots
+# for each pair, a list of global modes to be evaluated can be specified
+def GetStrainEnergySumErrorAndFullBeamDisplacementErrorOverSimulation(beamTemplate=None,
+                                                                      slidingJointFunction=None, loadTipFunction=None,
+                                                                      pairsToBeInvestigatedList=[(1, 1)],
+                                                                      nGlobalModesEvaluatedList=[[23, 22, 21, 20]],
+                                                                      tEnd=10, h=1e-3):
+    from beams import EulerBernulliBeam
+    startTime = tm.time()
+    nAnalyses= 0
+    nAnalysesCompleted = 0
+    for nGlobalModesEvaluted in nGlobalModesEvaluatedList:
+        nAnalyses += len(nGlobalModesEvaluted)
+    print('Total number of analyses:', nAnalyses)
+    strainEnergySumList = []
+    for i, pair in enumerate(pairsToBeInvestigatedList):
+        # OFFLINE compute initial global reduction basis
+        beam = EulerBernulliBeam(beamTemplate=beamTemplate)
+        eigenmodesLiftedAndMassNormalizedList = beam.GetGlobalMassNormalizedEigenmodesListForNumberOfConstrainedNodes(nNodesConstrained=pair[0],
+                                                                                                                      nEigenmodes=pair[1], verbose=True)
+        globalReductionBasisInitial = beam.GetGlobalReductionBasisUsingEigenmodesList(eigenmodesList=eigenmodesLiftedAndMassNormalizedList,
+                                                                                      nGlobalModes=nGlobalModesEvaluatedList[i][0], verbose=True)
+        
+        #++++++++++++++++++++++++++++++++++++++++++++++++++
+        # iterate over the global modes and remove them successively
+        strainEnergySumForPairList = []
+        for nGlobalModesUsed in nGlobalModesEvaluatedList[i]:
+            # initialize beam
+            SC = exu.SystemContainer()
+            mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
+            nGround = mbs.AddNode(NodePointGround())
+            mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
+            beam = EulerBernulliBeam(beamTemplate=beamTemplate,
+                                     slidingJointFunction=slidingJointFunction,
+                                     loadTipFunction=loadTipFunction)
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # GLOBALLY reduced beam and add it (here we can not use the wrapper for global reduction)
+            # we start always with the full globalReductionBasisInitial
+            beam.ReduceBeam(reductionBasis=globalReductionBasisInitial[:, 0:nGlobalModesUsed])
+            sCoordinatesStrainEnergySum, sCoordinates_tStrainEnergySum = beam.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # simulate dynamically (WYSWYS)
+            mbs.Assemble()
+            simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
+            mbs.SolveDynamic(simulationSettings=simulationSettings)
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # get results
+            _, time, qStrainEnergySum, q_tStrainEnergySum = beam.GetTimeAndCoordinates(mbs, sCoordinatesStrainEnergySum, sCoordinates_tStrainEnergySum)
+            strainEnergySum = beam.GetSumOfBeamStrainEnergy(qStrainEnergySum)
+            strainEnergySumForPairList += [strainEnergySum] # this varies in length
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # track progress
+            nAnalysesCompleted += 1
+            neededTime = (tm.time() - startTime) / nAnalysesCompleted
+            nAnalysesToGo = nAnalyses - nAnalysesCompleted
+            timeToGo = nAnalysesToGo * neededTime
+            hoursToGo = int(timeToGo) // 3600
+            minutesToGo = (int(timeToGo) % 3600) // 60
+            secondsToGo = int(timeToGo) % 60
+            print(f'Completed {(nAnalysesCompleted/nAnalyses) * 100:05.1f}%. ETA: {hoursToGo:02d}:{minutesToGo:02d}:{secondsToGo:02d}')
+        strainEnergySumList += [strainEnergySumForPairList]
+    return strainEnergySumList
+
 # helper fuction to compute Simple Moving Average (SMA)
 def SMA(time, data, window, SMAMode):
     SMA = np.convolve(data, np.ones(window) / window, mode=SMAMode)
@@ -289,11 +357,11 @@ def AbsError(signal, reference):
 
 # helper function for the Normalized Root-Mean-Square Error (NRMSE) of a vector signal
 def NRMSEVector(signal, reference):
-    # signal, reference: [nTimeSteps, nNodes}
-    norm = np.max(reference, axis=0) - np.min(reference, axis=0) # range over time, per node
-    rmse = np.sqrt(np.mean((signal - reference)**2, axis=0)) # rmse over time, per node
+    # signal, reference: [nTimeSteps, nNodes]
+    norm = np.sqrt(np.mean(reference**2, axis=0))  # RMS normalization of each coordinate
+    rmse = np.sqrt(np.mean((signal - reference)**2, axis=0)) # RMS error over time, per node
     mask = norm > 1e-10
-    return np.mean(rmse[mask] / norm[mask])
+    return np.mean(rmse[mask] / norm[mask]) # return normalized RMS error
 
 # helper function to get some standard simulation and visualization settings within EXUDYN
 def GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False):
