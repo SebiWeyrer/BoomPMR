@@ -83,6 +83,19 @@ def PrintHeadlineToConsole(length=80, text=None):
         right = remaining - left
         print('+' * left + middle + '+' * right)
 
+# helper function to track progress in the console
+def ProgressTracker(startTime, nAnalyses, nCompletedAnalyses, showETA=True):
+    neededTime = (tm.time() - startTime) / nCompletedAnalyses
+    nAnalysesToGo = nAnalyses - nCompletedAnalyses
+    timeToGo = nAnalysesToGo * neededTime
+    hoursToGo = int(timeToGo) // 3600
+    minutesToGo = (int(timeToGo) % 3600) // 60
+    secondsToGo = int(timeToGo) % 60
+    if showETA:
+        print(f'Completed {(nCompletedAnalyses/nAnalyses) * 100:05.1f}%. ETA: {hoursToGo:02d}:{minutesToGo:02d}:{secondsToGo:02d}')
+    else:
+        print(f'Completed {(nCompletedAnalyses/nAnalyses) * 100:05.1f}%.')
+
 # helper function to get an EXUDYN's graphics data list for a constraint symbol
 def GetGraphicsOfConstraint(position=[0, 0, 0]):
     constraintWidth = 0.3
