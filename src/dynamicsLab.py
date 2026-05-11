@@ -236,12 +236,12 @@ if not onlyLoadResults:
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # beam elements
-    nElementsBeamList = np.linspace(2, 60, 30, dtype=int)
+    nElementsNRList = np.linspace(2, 60, 30, dtype=int)
     tipDisplacementConvergenceAnalysisNRList = []
     startTime = tm.time()
     nCompletedAnalyses = 0
-    nAnalyses= len(nElementsBeamList)
-    for i, nElementsBeam in enumerate(nElementsBeamList):
+    nAnalyses= len(nElementsNRList)
+    for i, nElementsBeam in enumerate(nElementsNRList):
         # initialize beam
         SC = exu.SystemContainer()
         mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
@@ -272,16 +272,16 @@ if not onlyLoadResults:
     for tipDisplacementConvergenceAnalysisNR in tipDisplacementConvergenceAnalysisNRList[:-1]:
         errorConvergenceAnalysisNRList += [AbsError(tipDisplacementConvergenceAnalysisNR, tipDisplacementConvergenceAnalysisNRList[-1])]
     errorConvergenceAnalysisNRList += [0]
-    AppendResultsToPKLFile(resultsFileName, 'convergenceAnalysis', {'nElementsBeamList': nElementsBeamList,
+    AppendResultsToPKLFile(resultsFileName, 'convergenceAnalysis', {'nElementsNRList': nElementsNRList,
                                                                     'errorConvergenceAnalysisNRList': errorConvergenceAnalysisNRList})
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # for debugging: plot displacement of tip
     if False:
         figDisplacementForDebugging, axDisplacementForDebugging = plt.subplots(1, 1, figsize=[textWidth, 3])
-        for i in range(len(nElementsBeamList)):
+        for i in range(len(nElementsNRList)):
             axDisplacementForDebugging.plot(time, tipDisplacementConvergenceAnalysisANCFList[i], label='ANCF ele: ' + str(nElementsANCFList[i]))
-            axDisplacementForDebugging.plot(time, tipDisplacementConvergenceAnalysisNRList[i], label='Beam ele: ' + str(nElementsBeamList[i]))
+            axDisplacementForDebugging.plot(time, tipDisplacementConvergenceAnalysisNRList[i], label='Beam ele: ' + str(nElementsNRList[i]))
         axDisplacementForDebugging.legend()
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -289,7 +289,7 @@ if not onlyLoadResults:
 resultsDictConvergenceAnalysis = GetResultsDictFromPKLFile(resultsFileName, 'convergenceAnalysis')
 nElementsANCFList = resultsDictConvergenceAnalysis['nElementsANCFList']
 nDOFsANCFList = (nElementsANCFList + 1) * 4 # 4 DOfs per node
-nElementsBeamList = resultsDictConvergenceAnalysis['nElementsBeamList']
+nElementsNRList = resultsDictConvergenceAnalysis['nElementsNRList']
 nDOFsNRList = (nElementsNRList + 1) * beamConvergenceAnalysisNR.nDOFsPerNode # 3 DOfs per node
 errorConvergenceAnalysisANCFList = resultsDictConvergenceAnalysis['errorConvergenceAnalysisANCFList']
 errorConvergenceAnalysisNRList = resultsDictConvergenceAnalysis['errorConvergenceAnalysisNRList']
@@ -389,6 +389,7 @@ if not onlyLoadResults:
             _, time, qReductionErrorPMR, q_tReductionErrorPMR = beamReductionErrorPMR.GetTimeAndCoordinates(mbs, sCoordinatesReductionErrorPMR, sCoordinates_tReductionErrorPMR)
             tipDisplacementError += [AbsError(qReductionErrorPMR[:, -2], qReductionErrorNR[:, -2])]
             beamDisplacementNormalizedError += [NRMSEVector(qReductionErrorPMR[:, 1::beamReductionErrorPMR.nDOFsPerNode], qReductionErrorNR[:, 1::beamReductionErrorNR.nDOFsPerNode])]
+            nCompletedAnalyses += 1
             ProgressTracker(startTime, nAnalyses, nCompletedAnalyses)
         tipDisplacementErrorReductionErrorList += [tipDisplacementError]
         tipMeanDisplacementErrorReductionErrorList += [np.mean(tipDisplacementError)]
