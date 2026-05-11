@@ -290,7 +290,7 @@ resultsDictConvergenceAnalysis = GetResultsDictFromPKLFile(resultsFileName, 'con
 nElementsANCFList = resultsDictConvergenceAnalysis['nElementsANCFList']
 nDOFsANCFList = (nElementsANCFList + 1) * 4 # 4 DOfs per node
 nElementsBeamList = resultsDictConvergenceAnalysis['nElementsBeamList']
-nDOFsNRList = (nElementsANCFList + 1) * beamConvergenceAnalysisNR.nDOFsPerNode # 3 DOfs per node
+nDOFsNRList = (nElementsNRList + 1) * beamConvergenceAnalysisNR.nDOFsPerNode # 3 DOfs per node
 errorConvergenceAnalysisANCFList = resultsDictConvergenceAnalysis['errorConvergenceAnalysisANCFList']
 errorConvergenceAnalysisNRList = resultsDictConvergenceAnalysis['errorConvergenceAnalysisNRList']
 figConvergenceAnalysis, axConvergenceAnalysis = plt.subplots(1, 1, figsize=[textWidth, 2.5])
