@@ -14,6 +14,7 @@ from exudyn.utilities import *
 import matplotlib as mpl
 import matplotlib.font_manager as font_manager
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 # helper functions for some standard colors / legends
 def GetStandardValues(nGlobalModes=None):
@@ -408,6 +409,7 @@ def AppendResultsToPKLFile(fileName, key, newResultsDict, appendList=False):
             data['results'][key].update(newResultsDict)
         else:
             data['results'][key] = newResultsDict
+    data['results'][key]['updateTimeStamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with open(fileName, 'wb') as f:
         pickle.dump(data, f)
 
@@ -415,5 +417,6 @@ def AppendResultsToPKLFile(fileName, key, newResultsDict, appendList=False):
 def GetResultsDictFromPKLFile(fileName, key):
     with open(fileName, 'rb') as f:
         data = pickle.load(f)
+    print('Loading results data for "' + str(key) + '" experiment updated on', data['results'][key]['updateTimeStamp'])
     return data['results'][key]
     
