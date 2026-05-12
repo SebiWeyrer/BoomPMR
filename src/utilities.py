@@ -245,7 +245,7 @@ def GetOutputDictANCFFromSDictANCF(mbs, sDictANCF={}, sensorOutputVariableTypeAN
                 output = np.hstack((output, mbs.GetSensorStoredData(sensorNumber=sensor)[:,1:]))
         outputDictANCF[str(outputVariable)] = output
     if verbose:
-        print('For the ANCF element, a total of', nSensorsANCF, 'sensors are added.')
+        print('For the ANCF beam, a total of', nSensorsANCF, 'sensors are added.')
     return outputDictANCF
 
 # helper function to get the Hamiltonian of an ANCF beam using the dict with the output variables

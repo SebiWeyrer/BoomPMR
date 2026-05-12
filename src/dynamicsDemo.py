@@ -124,16 +124,14 @@ def SlidingJointFunction(t, startPosition=startPosition, stopPosition=stopPositi
 def LoadTipFunction(mbs, t, load):
     fStart = 1
     fEnd = 10
-    TChirp = tEnd/2
-    if t <= TChirp:
-        f = fStart + (fEnd - fStart) * t / TChirp
-        return A * np.sin(2 * np.pi * f * t)
-    elif t <= 2 * TChirp:
-        tLocal = t - TChirp
-        f = fEnd - (fEnd - fStart) * tLocal / TChirp
-        return A * np.sin(2 * np.pi * f * t)
+    tChirp = tExperiment / 2
+    if t <= tChirp:
+        phase = 2 * np.pi * (fStart * t + (fEnd - fStart) * (t**2 / (2 * tChirp)))
     else:
-        return A * np.sin(2 * np.pi * fStart * t)
+        tLocal = t - tChirp
+        phaseAtSwitch = 2 * np.pi * (fStart * tChirp + (fEnd - fStart) * (tChirp / 2))
+        phase = phaseAtSwitch + 2 * np.pi * (fEnd * tLocal - (fEnd - fStart) * (tLocal**2 / (2 * tChirp)))
+    return A * np.sin(phase)
 
 #%% create the beams (non reduced and globally reduced)
 PrintHeadlineToConsole(text='Setting up beams')
@@ -355,7 +353,9 @@ NRMSENR = NRMSE(qNR[:, -2], outputDictANCF['OutputVariableType.Displacement'][:,
 NRMSEPMR = NRMSE(qPMR[:, -2], outputDictANCF['OutputVariableType.Displacement'][:, -2])
 print('Non-reduced NRMS tip-displacement error:', str(round(NRMSENR*100, 2)) + '%.')
 print('Globally reduced NRMS tip-displacement error:', str(round(NRMSEPMR*100, 2)) + '%.')
+NRMSEVectorAgainstANCF = NRMSEVector(qNR[:, 1::beamNR.nDOFsPerNode],outputDictANCF['OutputVariableType.Displacement'][:, 1::3])
 NRMSEVectorAgainstNR = NRMSEVector(qPMR[:, 1::beamPMR.nDOFsPerNode], qNR[:, 1::beamNR.nDOFsPerNode])
+print('Non-reduced NRMS beam-displacement error:', str(round(NRMSEVectorAgainstANCF*100, 2)) + '%.')
 print('Globally reduced NRMS whole beam error against NR:', str(round(NRMSEVectorAgainstNR*100, 2)) + '%.')
 
 #%% plot the energies over time
