@@ -392,13 +392,22 @@ def GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False
     return simulationSettings
 
 # helper function to add results to results file
-def AppendResultsToPKLFile(fileName, key, newResultsDict):
+def AppendResultsToPKLFile(fileName, key, newResultsDict, appendList=False):
     with open(fileName, 'rb') as f:
         data = pickle.load(f)
-    if key in data['results']:
-        data['results'][key].update(newResultsDict)
+    if appendList:
+        if key not in data['results']:
+            data['results'][key] = {}
+        for newKeyToAppend in newResultsDict:
+            if newKeyToAppend in data['results'][key]:
+                data['results'][key][newKeyToAppend] += [newResultsDict[newKeyToAppend]]
+            else:
+                data['results'][key][newKeyToAppend] = [newResultsDict[newKeyToAppend]]
     else:
-        data['results'][key] = newResultsDict
+        if key in data['results']:
+            data['results'][key].update(newResultsDict)
+        else:
+            data['results'][key] = newResultsDict
     with open(fileName, 'wb') as f:
         pickle.dump(data, f)
 
