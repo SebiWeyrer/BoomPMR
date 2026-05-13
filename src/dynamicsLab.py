@@ -28,7 +28,7 @@ print('EXUDYN says hello with version', exu.config.Version() + '.')
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # decide whether only to load results or produce them
-onlyLoadResults = False # if False, expect long execution time due to expensive tests
+onlyLoadResults = True  # if False, expect long execution time due to expensive tests
 fastComputation = False # if True and not onlyLoadResults, a fast results file is written to check sanity
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -307,6 +307,8 @@ PrintHeadlineToConsole(text='Reference Solution Experiment: "Ref"')
 if not onlyLoadResults:
     slidingJointFunctionList = [SlidingJointFunctionSimple, SlidingJointFunctionEvolved]
     loadTipFunctionList = [LoadTipFunctionSimple, LoadTipFunctionEvolved]
+    AppendResultsToPKLFile(resultsFileName, 'Ref', {'outputDictRefANCFPerTestCaseList': []})
+    AppendResultsToPKLFile(resultsFileName, 'Ref', {'qRefNRPerTestCaseList': [], 'qRef_tNRPerTestCaseList': []})
     for i in range(len(slidingJointFunctionList)):
         # initialize beam (to inherit some data to ANCF beam)
         beamRefNR = EulerBernulliBeam(beamTemplate=beamTemplateRubber)
@@ -358,9 +360,6 @@ if not onlyLoadResults:
         mbs.Assemble()
         simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
         mbs.SolveDynamic(simulationSettings=simulationSettings)
-        
-        #++++++++++++++++++++++++++++++++++++++++++++++++++
-        # get results
         _, time, qRefNR, q_tRefNR = beamRefNR.GetTimeAndCoordinates(mbs, sCoordinatesRefNR, sCoordinates_tRefNR)
         AppendResultsToPKLFile(resultsFileName, 'Ref', {'qRefNRPerTestCaseList': qRefNR,
                                                         'qRef_tNRPerTestCaseList': q_tRefNR}, appendList=True)
@@ -394,15 +393,16 @@ for i in range(2):
     else:
         resultsStr = 'Evolved Test Case '
     print(resultsStr + 'Results:')
-    NRMSENR = NRMSE(qRefNRPerTestCaseList[i][:, -2], outputDictRefANCFPerTestCaseList[i]['OutputVariableType.Displacement'][:, -2])
-    print('Non-reduced tip y-displacement error against ANCF:', str(round(NRMSENR*100, 2)) + '%.')
-    NRMSEVectorNR = NRMSEVector(qRefNRPerTestCaseList[i][:, -2], outputDictRefANCFPerTestCaseList[i]['OutputVariableType.Displacement'][:, -2])
-    print('Non-reduced beam y-displacement error against ANCF:', str(round(NRMSEVectorNR*100, 2)) + '%.')
+    tipDisplacementNRMSENRANCF = NRMSE(qRefNRPerTestCaseList[i][:, -2], outputDictRefANCFPerTestCaseList[i]['OutputVariableType.Displacement'][:, -2])
+    print('Non-reduced tip y-displacement error against ANCF:', str(round(tipDisplacementNRMSENRANCF*100, 2)) + '%.')
+    beamDisplacementNRMSENRANCF = NRMSEVector(qRefNRPerTestCaseList[i][:, 1::beamSimpleRefNR.nDOFsPerNode], outputDictRefANCFPerTestCaseList[i]['OutputVariableType.Displacement'][:, 1::3])
+    print('Non-reduced beam y-displacement error against ANCF:', str(round(beamDisplacementNRMSENRANCF*100, 2)) + '%.')
 SaveFig(figRef, figPath, 'E_referenceSolutions', closeFig=True, saveFig=False)
 
 #%% compute displacement error of globally reduced beam vs. non-reduced beam to obtain reduction error
 PrintHeadlineToConsole(text='Reduction Error Experiment: "Re"')
 if not onlyLoadResults:
+    AppendResultsToPKLFile(resultsFileName, 'Re', {'qRePMRList':[]})
     # determine combinations that should be tested
     nSnapshotsList = np.arange(1, 30+1, 1)
     nEigenmodesPerSnapshotList = np.arange(1, 16+1, 1)
@@ -482,12 +482,15 @@ nSnapshotsList = resultsDictRe['nSnapshotsList']
 nEigenmodesPerSnapshotList = resultsDictRe['nEigenmodesPerSnapshotList']
 pairsToInvestigateList = resultsDictRe['pairsToInvestigateList']
 qRePMRList = resultsDictRe['qRePMRList']
+nAnalyses = 0
 normDisplacementErrorRePMRList = []
 for qRePMROfPairList in qRePMRList:
     normDisplacementErrorRePMROfPairList = []
     for qRePMR in qRePMROfPairList:
         normDisplacementErrorRePMROfPairList += [NRMSEVector(qRePMR[:, 1::3], qRefNRPerTestCaseList[1][:, 1::3])]
+        nAnalyses += 1
     normDisplacementErrorRePMRList += [np.mean(normDisplacementErrorRePMROfPairList)]
+print('Loading a total of', nAnalyses, 'analyses.')
 normDisplacementErrorRePMRMatrix = np.full([len(nEigenmodesPerSnapshotList), len(nSnapshotsList)], np.nan)
 for i, pair in enumerate(pairsToInvestigateList):
     nSnapshots = pair[0]
@@ -526,7 +529,7 @@ rows, cols = np.unravel_index(flatIdx, normDisplacementErrorRePMRMatrix.shape)
 for r, c in zip(rows, cols):
     axRe.add_patch(mpatches.Rectangle((c - 0.5, r - 0.5), 1, 1, linewidth=1.5, edgecolor='black', facecolor='none', zorder=5))
 legendHandles = [Line2D([0], [0], color='black', linewidth=2, label=r'$n_\mathrm{snap.} \, r_\mathrm{snap.} = ' + str(contourLevel) + '$'),
-                 mpatches.Rectangle((0, 0), 1, 1, linewidth=1.5, edgecolor='black', facecolor='none', label='10 lowest errors'),]
+                 mpatches.Rectangle((0, 0), 1, 1, linewidth=1.5, edgecolor='black', facecolor='none', label=str(nLowest) + ' lowest errors'),]
 axRe.legend(handles=legendHandles, loc='upper right')
 SaveFig(figRe, figPath, 'E_reductionError', closeFig=False)
 
@@ -540,6 +543,7 @@ print('Best combo: nSapshots = ' + str(nSnapshotsBest) + '; nEigenmodesPerSnapsh
 #%% compute quantities for specific selected combos
 PrintHeadlineToConsole(text='Selected Combos Experiment: "Sc"')
 if not onlyLoadResults:
+    AppendResultsToPKLFile(resultsFileName, 'Sc', {'qScPMRList':[], 'q_tScPMRList':[]})
     # determine combinations that should be tested
     if fastComputation:
         pairsToInvestigateList = [(4, 1), (2, 4)]

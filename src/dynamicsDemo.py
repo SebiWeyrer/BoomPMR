@@ -351,11 +351,11 @@ plt.tight_layout()
 #%% compute one scalar error value
 NRMSENR = NRMSE(qNR[:, -2], outputDictANCF['OutputVariableType.Displacement'][:, -2])
 NRMSEPMR = NRMSE(qPMR[:, -2], outputDictANCF['OutputVariableType.Displacement'][:, -2])
-print('Non-reduced NRMS tip-displacement error:', str(round(NRMSENR*100, 2)) + '%.')
+print('Non-reduced NRMS tip-displacement error against ANCF:', str(round(NRMSENR*100, 2)) + '%.')
 print('Globally reduced NRMS tip-displacement error:', str(round(NRMSEPMR*100, 2)) + '%.')
-NRMSEVectorAgainstANCF = NRMSEVector(qNR[:, 1::beamNR.nDOFsPerNode],outputDictANCF['OutputVariableType.Displacement'][:, 1::3])
+NRMSEVectorAgainstANCF = NRMSEVector(qNR[:, 1::beamNR.nDOFsPerNode], outputDictANCF['OutputVariableType.Displacement'][:, 1::3])
 NRMSEVectorAgainstNR = NRMSEVector(qPMR[:, 1::beamPMR.nDOFsPerNode], qNR[:, 1::beamNR.nDOFsPerNode])
-print('Non-reduced NRMS beam-displacement error:', str(round(NRMSEVectorAgainstANCF*100, 2)) + '%.')
+print('Non-reduced NRMS beam-displacement error against ANCF:', str(round(NRMSEVectorAgainstANCF*100, 2)) + '%.')
 print('Globally reduced NRMS whole beam error against NR:', str(round(NRMSEVectorAgainstNR*100, 2)) + '%.')
 
 #%% plot the energies over time
