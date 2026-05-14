@@ -6,7 +6,7 @@
 #           constraints are supported. This class also natively supports
 #           adding the beams (with graphics) to EXUDYN.
 # Author:   Sebastian Weyrer
-# Date:     2026-04-22
+# Date:     2026-05-14
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -338,7 +338,9 @@ class EulerBernulliBeam:
     # if more than two nodes are constrained, use equally spaced configurations between second and last node
     def GetGlobalMassNormalizedEigenmodesListForNumberOfConstrainedNodes(self, nNodesConstrained=2, nEigenmodes=1,
                                                                          constrainXDOFOfConstrainedNodes=False,
-                                                                         nodeNumbersConstrainedList=None, verbose=False):
+                                                                         nodeNumbersConstrainedList=None,
+                                                                         usePartialEigensolvers=False,
+                                                                         verbose=False):
         if verbose:
             PrintHeadlineToConsole(text='Computing snapshots')
         self.eigenmodesUnconstrainedList = [] # list of eigenmodes (without constrained BCs) PER constrained node number
@@ -383,7 +385,13 @@ class EulerBernulliBeam:
             self.KUnconstrainedList += [KUnconstrained]
             self.MUnconstrainedList += [MUnconstrained]
             # solve the eigenvalues problem
-            eigvals, eigvecs = eigh(KUnconstrained, MUnconstrained, subset_by_index=[0, nEigenmodes-1])
+            if usePartialEigensolvers:
+                print('WARNING: You are using partial eigensolvers which tend to struggle for certain combinations.')
+                eigvals, eigvecs = eigh(KUnconstrained, MUnconstrained, subset_by_index=[0, nEigenmodes-1])
+            else:
+                eigvals, eigvecs = eigh(KUnconstrained, MUnconstrained)
+                eigvals = eigvals[:nEigenmodes]
+                eigvecs = eigvecs[:, :nEigenmodes]
             if verbose:
                 print('Eigenvalues ' + str(i+1) + ':', eigvals)
             self.eigenmodesUnconstrainedList += [eigvecs]
@@ -545,16 +553,17 @@ class EulerBernulliBeam:
         return graphicsData
     
     # class function that globally reduces the beam (it is a wrapper function that calls underlying methods of this beam class)
-    def GlobalReduceBeamWrapper(self, nGlobalModes=24, nSnapshots=6, nEigenmodesPerSnapshot=6, plot=False, figSize=[5, 7], verbose=False):
+    def GlobalReduceBeamWrapper(self, nGlobalModes=24, nSnapshots=6, nEigenmodesPerSnapshot=6,
+                                usePartialEigensolvers=False, plot=False, figSize=[5, 7], verbose=False):
         eigenmodesLiftedAndMassNormalizedListPMR = self.GetGlobalMassNormalizedEigenmodesListForNumberOfConstrainedNodes(nNodesConstrained=nSnapshots,
                                                                                                                          nEigenmodes=nEigenmodesPerSnapshot,
-                                                                                                                         verbose=verbose)
+                                                                                                                         usePartialEigensolvers=usePartialEigensolvers, verbose=verbose)
         if plot:
             self.PlotEigenmodesSets(eigenmodesList=eigenmodesLiftedAndMassNormalizedListPMR,
                                        nEigenmodesToPlot=min(nEigenmodesPerSnapshot, 3),
                                        nodeNumbersConstrainedList=self.nodeNumbersConstrainedList, figSize=figSize)
-        globalReductionBasis = self.GetGlobalReductionBasisUsingEigenmodesList(eigenmodesList=eigenmodesLiftedAndMassNormalizedListPMR,
-                                                                                 nGlobalModes=nGlobalModes, verbose=verbose)
+        globalReductionBasis = self.GetGlobalReductionBasisUsingEigenmodesList(eigenmodesList=eigenmodesLiftedAndMassNormalizedListPMR, 
+                                                                               nGlobalModes=nGlobalModes, verbose=verbose)
         self.ReduceBeam(reductionBasis=globalReductionBasis)
 
 # class that is used as a template for setting up a beam

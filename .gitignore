@@ -1,7 +1,8 @@
 coordinatesSolution.txt
 **/__pycache__/
 **/images/
-
+# ignoring results files
+*.pkl
 # ignoring latex temporary files
 *.aux
 *.bbl
