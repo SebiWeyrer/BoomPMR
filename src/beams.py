@@ -67,18 +67,21 @@ class EulerBernulliBeam:
         # special settings and variable initializations due to sliding joint and force
         self.doNotInterpolateForSlidingBC = params.get('doNotInterpolateForSlidingBC')
         if self.doNotInterpolateForSlidingBC:
-            print('WARNING: You do not interpolate for the sliding Boundary Condition (BC) which is only implemented to demonstrate that it does not work well!')
+            if not params.get('surpressWarningsUponInitialization'):
+                print('WARNING: You do not interpolate for the sliding Boundary Condition (BC) which is only implemented to demonstrate that it does not work well!')
         self.idxNodeA = 0 # initialize with zero
         SlidingJointFunction = params.get('slidingJointFunction') # this function gives us pos of sliding joint over time
         if SlidingJointFunction is None:
-            print('WARNING: Specify a "SlidingJointFunction", unless you only want visualization/initialization!')
+            if not params.get('surpressWarningsUponInitialization'):
+                print('WARNING: Specify a "SlidingJointFunction", unless you only want visualization/initialization!')
             def SlidingJointFunction(t):
                 return self.L/2
         self.SlidingJointFunction = SlidingJointFunction
         self.SetConstrainedNodeNumbersDueToSlidingJoint(np.zeros(self.nDOFs), 0) # initialization call; here idxNodeA is overwritten
         LoadTipFunction = params.get('loadTipFunction')
         if LoadTipFunction is None:
-            print('WARNING: Specify a "LoadTipFunction", unless you only want visualization/initialization!')
+            if not params.get('surpressWarningsUponInitialization'):
+                print('WARNING: Specify a "LoadTipFunction", unless you only want visualization/initialization!')
             def LoadTipFunction(mbs, t, load):
                 return 0
         self.LoadTipFunction = LoadTipFunction
@@ -474,7 +477,8 @@ class EulerBernulliBeam:
         return fig
     
     # class function to get global reduction basis of beam
-    def GetGlobalReductionBasisUsingEigenmodesList(self, eigenmodesList=[], nGlobalModes=24, verbose=False):
+    def GetGlobalReductionBasisUsingEigenmodesList(self, eigenmodesList=[], nGlobalModes=24, verbose=False,
+                                                   returnSingularValues=False):
         if verbose:
             PrintHeadlineToConsole(text='Computing global reduction basis')
         for i, psi in enumerate(eigenmodesList):
@@ -495,7 +499,10 @@ class EulerBernulliBeam:
         if verbose:
             print('Computed global reduction basis with ' + str(np.shape(psiGlobal)[1]) + ' global mode(s).')
             print('Computation time: ' + str(computationTime) + 's.')
-        return psiGlobal
+        if returnSingularValues:
+            return psiGlobal, S
+        else:
+            return psiGlobal
     
     # class function to get info about 'time' and the coordinates q and q_t with given sensor numbers
     def GetTimeAndCoordinates(self, mbs, sCoordinates, sCoordinates_t):
@@ -572,7 +579,8 @@ class EulerBernulliBeam:
 class BeamTemplate:
     def __init__(self, physicsLength=1, physicsMassPerLength=5, physicsBendingStiffness=3e4,
                  physicsAxialStiffness=6e6, nElements=10, widthForDrawing=0.2, color=graphics.color.blue,
-                 positionReference=[0, 0, 0], slidingJointFunction=None, loadTipFunction=None, doNotInterpolateForSlidingBC=False):
+                 positionReference=[0, 0, 0], slidingJointFunction=None, loadTipFunction=None, doNotInterpolateForSlidingBC=False,
+                 surpressWarningsUponInitialization=False):
         self.physicsLength = physicsLength
         self.physicsMassPerLength = physicsMassPerLength
         self.physicsBendingStiffness = physicsBendingStiffness
@@ -584,6 +592,7 @@ class BeamTemplate:
         self.slidingJointFunction = slidingJointFunction
         self.loadTipFunction = loadTipFunction
         self.doNotInterpolateForSlidingBC = doNotInterpolateForSlidingBC
+        self.surpressWarningsUponInitialization = surpressWarningsUponInitialization
     
     def GetBeamParamatersAsDict(self):
         return vars(self)

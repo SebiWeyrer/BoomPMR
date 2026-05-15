@@ -20,9 +20,9 @@ from datetime import datetime
 def GetStandardValues(nGlobalModes=None):
     standardColors = [[0.1216, 0.4667, 0.7059, 1], [1.0, 0.4980, 0.0549, 1], [0.172549, 0.627451, 0.172549, 1.0], graphics.color.red] # colors of beams (also used for plots)
     if nGlobalModes is not None:
-        labelList = ['ANCF', 'EB, non-reduced (with AE)', 'EB, globally reduced (r=' + str(nGlobalModes) + ') (with AE)', 'non-reduced (minimal coordiantes)']
+        labelList = ['ANCF', 'EB, non-reduced', 'EB, globally reduced (r=' + str(nGlobalModes) + ')', 'non-reduced (minimal coordiantes)']
     else:
-        labelList = ['ANCF', 'EB, non-reduced (with AE)', 'EB, globally reduced (with AE)', 'non-reduced (minimal coordiantes)']
+        labelList = ['ANCF', 'EB, non-reduced', 'EB, globally reduced', 'non-reduced (minimal coordiantes)']
     rawDataLabelList = ['displ. x in m', 'displ. y in m', 'rot in rad']
     markerList = ['-o', '-*', '-p', '-+']
     timeStr = 'time in s'

@@ -14,7 +14,7 @@
 #           graphics functionality for the beam but not constraints etc.. Here,
 #           'utility.py' provides functionality.
 # Author:   Sebastian Weyrer
-# Date:     2026-04-23
+# Date:     2026-05-15
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -38,9 +38,9 @@ EA = 2e7                                    # [N] axial stiffness of beam
 EI = 5e4 #6.8e7 # 5e4 #6.8e7#               # [Nm^2] bending stiffness of beam
 nElements = 50                              # number of elements (discretization) the beam (NR and PMR) is made out of
 nElementsANCF = 20                          # number of elements (discretization) the beam (ANCF) is made out of    
-nSnapshots = 12                             # number of snapshots used for global reduction
-nEigenmodesPerSnapshot = 4                  # eigenmodes used per snapshot
-nGlobalModes = 24                           # number of global modes in global reduction basis
+nSnapshots = 5                              # number of snapshots used for global reduction
+nEigenmodesPerSnapshot = 6                  # eigenmodes used per snapshot
+nGlobalModes = 20                           # number of global modes in global reduction basis
 # define behavior of script
 tEnd = 15                                   # [s] duration of the experiment
 h = 1e-3                                    # [s] step size of integration
