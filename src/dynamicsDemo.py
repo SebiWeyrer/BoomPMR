@@ -6,8 +6,8 @@
 #           (ANCF) with a sliding joint as the reference formulation and
 #           compares a Non-Reduced (NR) Euler-Bernulli (EB) beam, OPTIONALLY a
 #           Specifically for one configuration Reduced (SR) EB beam (which
-#           seems to break the solver) and a globally (Parametric Model order
-#           Reduction (PMR)) reduced EB beam with it.
+#           breaks the solver) and a globally (Parametric Model order Reduction
+#           (PMR)) reduced EB beam with it.
 #           The sliding joint for the EB beams is implemented using Lagrange
 #           multipliers (q-derivative of constraint equations -> Jacobian C_q).
 #           Remarks on ghraphics: The beam class ('beams.py') has it's own

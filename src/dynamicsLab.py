@@ -1,9 +1,20 @@
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #
-# Details:  at first, alays variable or object names (s..sensor, beam...beam object)
-#           then the type of experiment abbreviated with camel-case short-name
-#           then ANCF, NR, or PMR, or Beam if NR and PMR
-#           then computational object if necessary, i.e. List, PerPairList
+# Details:  This is the laboratory script for the 'BoomPMR'-Project.
+#           It runs different experiments, where each experiment is abbreviated
+#           by a camel-case short-name. The srcipt can write a results file
+#           (for all experiments approx. 2.5GB large) or only load results if
+#           a results file (.pkl) is placeed in the same directory. Running
+#           only one experiment updates this part of the results file. Naming:
+#           (1) variable or object names (s..sensor, beam...beam object)
+#           (2) the type of experiment abbreviated with short-name
+#           (3) formalism identifier if applicable:
+#               (3.1) ANCF    Absolute Nodal Coordinate Formulation (ANCF)
+#               (3.2) NR      Non-Reduced Euler-Bernoulli (EB) Beam
+#               (3.3) PMR     globally Parametric Order Reduced (PMR) EB Beam
+#               (3.4) Beam    if used for both NR and PMR
+#           (4) the computational object if necessary (e.g. List, PerPairList).
+#           For running all experiments, expect long runs (> 3h).
 # Author:   Sebastian Weyrer
 # Date:     2026-05-15
 #
