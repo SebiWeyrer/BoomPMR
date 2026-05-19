@@ -2,7 +2,7 @@
 #
 # Details:  Utilities for the 'BoomPMR'-Project.
 # Author:   Sebastian Weyrer
-# Date:     2026-04-23
+# Date:     2026-05-19
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -356,11 +356,12 @@ def SMA(time, data, window, SMAMode):
         timeSMA = time # do not trim
     return timeSMA, SMA
 
-# helper function for the Normalized Root-Mean-Square Error (NRMSE) of a scalar signal
-def NRMSE(signal, reference):
-    rmse = np.sqrt(np.mean((signal - reference)**2))
-    norm = np.max(reference) - np.min(reference)
-    return rmse / norm
+# helper function to compute the normalized RMSE of a 1D or nD signal
+def NRMSE(signal, reference, axis=0, eps=1e-10):
+    norm = np.sqrt(np.mean(reference**2, axis=axis))
+    rmse = np.sqrt(np.mean((signal - reference)**2, axis=axis))
+    mask = norm > eps
+    return np.mean(rmse[mask] / norm[mask])
 
 # helper function to get the Root Mean Square (RMS) of a signal
 def RMSE(signal, reference):
@@ -368,14 +369,6 @@ def RMSE(signal, reference):
 
 def AbsError(signal, reference):
     return np.linalg.norm(signal-reference)
-
-# helper function for the Normalized Root-Mean-Square Error (NRMSE) of a vector signal
-def NRMSEVector(signal, reference):
-    # signal, reference: [nTimeSteps, nNodes]
-    norm = np.sqrt(np.mean(reference**2, axis=0))  # RMS normalization of each coordinate
-    rmse = np.sqrt(np.mean((signal - reference)**2, axis=0)) # RMS error over time, per node
-    mask = norm > 1e-10
-    return np.mean(rmse[mask] / norm[mask]) # return normalized RMS error
 
 # helper function to get some standard simulation and visualization settings within EXUDYN
 def GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False):

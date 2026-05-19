@@ -16,7 +16,7 @@
 #           (4) the computational object if necessary (e.g. List, PerPairList).
 #           For running all experiments, expect long runs (> 3h).
 # Author:   Sebastian Weyrer
-# Date:     2026-05-15
+# Date:     2026-05-19
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -42,7 +42,7 @@ print('EXUDYN says hello with version', exu.config.Version() + '.')
 # decide whether only to load results or produce them
 onlyLoadResults = True  # if False, expect long execution time due to expensive tests
 fastComputation = False # if True and not onlyLoadResults, a fast results file is written to check sanity
-saveFigures = False
+saveFigures = True
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # default setup of beam reference parameters and one reference beam (that is used for some illustrations, ...)
@@ -431,7 +431,7 @@ normDisplacementErrorRePMRList = []
 for qRePMROfPairList in qRePMRList:
     normDisplacementErrorRePMROfPairList = []
     for qRePMR in qRePMROfPairList:
-        normDisplacementErrorRePMROfPairList += [NRMSEVector(qRePMR[:, 1::beamRefNR.nDOFsPerNode], qReNR[:, 1::beamRefNR.nDOFsPerNode])]
+        normDisplacementErrorRePMROfPairList += [NRMSE(qRePMR[:, 1::beamRefNR.nDOFsPerNode], qReNR[:, 1::beamRefNR.nDOFsPerNode])]
         nAnalyses += 1
     normDisplacementErrorRePMRList += [np.mean(normDisplacementErrorRePMROfPairList)]
 print('Loading a total of', nAnalyses, 'analyses.')
@@ -572,7 +572,7 @@ for qScPMROfPairList in qScPMRList:
     normDisplacementErrorScPMROfPairList = []
     strainSumErrorScPMROfPairList = []
     for qScPMR in qScPMROfPairList:
-        normDisplacementErrorScPMROfPairList += [min(NRMSEVector(qScPMR[:, 1::beamRefNR.nDOFsPerNode], qReNR[:, 1::beamRefNR.nDOFsPerNode]), 1)]
+        normDisplacementErrorScPMROfPairList += [min(NRMSE(qScPMR[:, 1::beamRefNR.nDOFsPerNode], qReNR[:, 1::beamRefNR.nDOFsPerNode]), 1)]
         strainSumErrorScPMROfPairList += [abs(strainSumScNR-beamRefNR.GetSumOfBeamStrainEnergy(qScPMR))]
     normDisplacementErrorScPMRList += [normDisplacementErrorScPMROfPairList]
     strainSumErrorScPMRList += [strainSumErrorScPMROfPairList]
@@ -602,12 +602,13 @@ for i, normDisplacementErrorScPMROfPairList in enumerate(normDisplacementErrorSc
         axErrorSc[0].fill_between(xShaded, 0, yShaded, alpha=0.2, color=f'C{i}')
 for ax in axErrorSc:
     ax.grid()
-axErrorSc[0].invert_xaxis()
+# axErrorSc[0].invert_xaxis()
 axErrorSc[1].legend()
-axErrorSc[0].set_xticks(np.arange(3, nGlobalModesMax+3, 3))
+axErrorSc[0].set_xticks(np.arange(3, nGlobalModesMax, 3))
 axErrorSc[0].set_ylabel('normalized RMS error\nbeam y-displacement')
 axErrorSc[1].set_ylabel('abs. strain sum\nerror in J')
 axErrorSc[1].set_xlabel(r'number $n_\mathrm{glob.}$ of global modes in global reduction basis')
+axErrorSc[1].set_xlim([2, nGlobalModesMax])
 figErrorSc.tight_layout()
 SaveFig(figErrorSc, figPath, 'E_selectedCombosError', closeFig=False, saveFig=saveFigures)
 figSingularValuesSc, axSingularValuesSc = plt.subplots(1, 1, figsize=[textWidth, 2.2])
@@ -736,11 +737,11 @@ for i in range(2):
     displacementANCF = outputDictHNumANCFPerTestCaseList[i]['OutputVariableType.Displacement']
     qHNumNR = qHNumNRPerTestCaseList[i]
     qHNumPMR = qHNumPMRPerTestCaseList[i]
-    displacementErrorNRANCF = NRMSEVector(qHNumNR[:, 1::beamRefNR.nDOFsPerNode], displacementANCF[:, 1::3])
+    displacementErrorNRANCF = NRMSE(qHNumNR[:, 1::beamRefNR.nDOFsPerNode], displacementANCF[:, 1::3])
     print('norm. Beam Displacement; NR against ANCF:\t', round(displacementErrorNRANCF, 4))
-    displacementErrorPMRANCF = NRMSEVector(qHNumPMR[:, 1::beamRefNR.nDOFsPerNode], displacementANCF[:, 1::3])
+    displacementErrorPMRANCF = NRMSE(qHNumPMR[:, 1::beamRefNR.nDOFsPerNode], displacementANCF[:, 1::3])
     print('norm. Beam Displacement; PMR against ANCF:\t', round(displacementErrorPMRANCF, 4))
-    displacementErrorPMRNR = NRMSEVector(qHNumPMR[:, 1::beamRefNR.nDOFsPerNode], qHNumNR[:, 1::beamRefNR.nDOFsPerNode])
+    displacementErrorPMRNR = NRMSE(qHNumPMR[:, 1::beamRefNR.nDOFsPerNode], qHNumNR[:, 1::beamRefNR.nDOFsPerNode])
     print('norm. Beam Displacement; PMR against NR:\t', round(displacementErrorPMRNR, 4))
     tipDisplacementErrorNRANCF = NRMSE(qHNumNR[:, -2], displacementANCF[:, -2])
     print('norm. Tip Displacement; NR against ANCF:\t', round(tipDisplacementErrorNRANCF, 4))
@@ -890,7 +891,7 @@ for dataPerTestCaseList in dataList:
 meanComputationTimeCs = [meanComputationTimeSimpleCs, meanComputationTimeEvolvedCs]
 stdComputationTimeCs = [stdComputationTimeSimpleCs, stdComputationTimeEvolvedCs]
 x = np.arange(len(labels))
-width = 0.25
+width = 0.4
 multiplier = 0
 figCs, axCs = plt.subplots(1, 1, figsize=[textWidth, 2])
 for i in range(2):
