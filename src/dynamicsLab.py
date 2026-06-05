@@ -16,7 +16,7 @@
 #           (4) the computational object if necessary (e.g. List, PerPairList).
 #           For running all experiments, expect long runs (> 3h).
 # Author:   Sebastian Weyrer
-# Date:     2026-05-19
+# Date:     2026-06-05
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -314,7 +314,7 @@ axCa.loglog(nDOFsNRList[:-1], errorCaNRList[:-1], '-*', label=labelList[1], colo
 axCa.grid()
 axCa.legend()
 axCa.set_xlabel('number of DOFs')
-axCa.set_ylabel('abs. error\ntip y-displacement in m')
+axCa.set_ylabel('abs. error transv.\ntip displacement in m')
 SaveFig(figCa, figPath, 'E_convergenceAnalysis', closeFig=False, saveFig=saveFigures)
 
 #%% compute displacement error of globally reduced beam vs. non-reduced beam to obtain reduction error
@@ -456,7 +456,7 @@ axRe.set_yticklabels(nEigenmodesPerSnapshotList[yTickIndices])
 axRe.invert_yaxis()
 axRe.set_xlabel(r'number $n_\mathrm{snap.}$ of snapshots')
 axRe.set_ylabel(r'number $r_\mathrm{snap.}$ of' + '\neigenmodes per snapshot')
-plt.colorbar(im, label='normalized RMS error\nbeam y-displacement')
+plt.colorbar(im, label='norm. RMS error transv.\nbeam displacement')
 # contour
 contourLevel = 26
 xi = np.linspace(0, len(nSnapshotsList) - 1, 500)
@@ -605,11 +605,11 @@ for ax in axErrorSc:
 # axErrorSc[0].invert_xaxis()
 axErrorSc[1].legend()
 axErrorSc[0].set_xticks(np.arange(3, nGlobalModesMax, 3))
-axErrorSc[0].set_ylabel('normalized RMS error\nbeam y-displacement')
-axErrorSc[1].set_ylabel('abs. strain sum\nerror in J')
-axErrorSc[1].set_xlabel(r'number $n_\mathrm{glob.}$ of global modes in global reduction basis')
+axErrorSc[0].set_ylabel('norm. RMS error transv.\nbeam displacement')
+axErrorSc[1].set_ylabel('abs. error\nstrain sum in J')
+axErrorSc[1].set_xlabel(r'number $r_\mathrm{glob.}$ of global modes in global reduction basis')
 axErrorSc[1].set_xlim([2, nGlobalModesMax])
-figErrorSc.tight_layout()
+figErrorSc.tight_layout(rect=[0, 0, 1, 1.1]) # in pdf it must be rescaled a bit due to long label
 SaveFig(figErrorSc, figPath, 'E_selectedCombosError', closeFig=False, saveFig=saveFigures)
 figSingularValuesSc, axSingularValuesSc = plt.subplots(1, 1, figsize=[textWidth, 2.2])
 nMaxSingularValuesToPlot = 100
@@ -634,6 +634,21 @@ axSingularValuesSc.set_ylabel('singular value')
 axSingularValuesSc.legend()
 axSingularValuesSc.set_xlabel('global mode')
 SaveFig(figSingularValuesSc, figPath, 'E_selectedCombosSingularValues', closeFig=False, saveFig=saveFigures)
+
+#++++++++++++++++++++++++++++++++++++++++++++++++++
+# compute kappa
+nGlobalModes = 20
+for i, pair in enumerate(pairsToInvestigateList):
+    nSnapshots = pair[0]
+    nEigenmodesPerSnapshot = pair[1]
+    num = 0
+    denum = 0
+    for j, sigma in enumerate(sList[i]):
+        if j < 20:
+            num += sigma**2
+        denum += sigma**2
+    kappa = num / denum
+    print(f'({nSnapshots}, {nEigenmodesPerSnapshot}): kappa={kappa}')
 
 #%% Hamiltonian for sliding phase and numerical results
 PrintHeadlineToConsole(text='Hamiltonian and Numerical Results Experiment: "HNum"')
@@ -775,7 +790,7 @@ for i in range(2):
     markEvery = (int(2*markerInterval*markerIntervalHamiltonianPlotFactor/3), markerInterval*markerIntervalHamiltonianPlotFactor)
     axTipDisplacementHamiltonianHNum[1].plot(time, EHNumPMRPerTestCaseList[i], markerList[2], markevery=markEvery,
                                   label=labelList[2])
-    axTipDisplacementHamiltonianHNum[0].set_ylabel('tip y-displacement in m')
+    axTipDisplacementHamiltonianHNum[0].set_ylabel('transv.\ntip displacement in m')
     axTipDisplacementHamiltonianHNum[1].set_ylabel('Hamiltonian of\nthe system in J')
     labelX = -0.13  # tune this value
     axTipDisplacementHamiltonianHNum[0].yaxis.set_label_coords(labelX, 0.5)
@@ -897,9 +912,9 @@ figCs, axCs = plt.subplots(1, 1, figsize=[textWidth, 2])
 for i in range(2):
     offset = width * multiplier
     if i == 0:
-        label = r"test case ``simple''"
+        label = r'simple'
     else:
-        label = r"test case ``evolved''"
+        label = r'evolved'
     rects = axCs.bar(x + offset, meanComputationTimeCs[i], width, label=label,
                      # yerr=stdComputationTimeCs[i], capsize=5
                      )

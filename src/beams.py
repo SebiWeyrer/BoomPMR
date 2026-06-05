@@ -277,7 +277,7 @@ class EulerBernulliBeam:
             else:
                 w = 0
             C_q[2, q1IndexOfNodeA+1] = 1 - w
-            C_q[2, q1IndexOfNodeb+1] = w
+            C_q[2, q1IndexOfNodeB+1] = w
         else: # default setting
             C_q[2, q1IndexOfNodeA+1] = N2
             C_q[2, q1IndexOfNodeA+2] = N3
