@@ -42,7 +42,7 @@ print('EXUDYN says hello with version', exu.config.Version() + '.')
 # decide whether only to load results or produce them
 onlyLoadResults = True  # if False, expect long execution time due to expensive tests
 fastComputation = False # if True and not onlyLoadResults, a fast results file is written to check sanity
-saveFigures = True
+saveFigures = False
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # default setup of beam reference parameters and one reference beam (that is used for some illustrations, ...)
