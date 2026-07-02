@@ -4,7 +4,7 @@
 #           It runs different experiments, where each experiment is abbreviated
 #           by a camel-case short-name. The srcipt can write a results file
 #           (for all experiments approx. 2.5GB large) or only load results if
-#           a results file (.pkl) is placeed in the same directory. Running
+#           a results file (.pkl) is placed in the same directory. Running
 #           only one experiment updates this part of the results file. Naming:
 #           (1) variable or object names (s..sensor, beam...beam object)
 #           (2) the type of experiment abbreviated with short-name
@@ -16,7 +16,7 @@
 #           (4) the computational object if necessary (e.g. List, PerPairList).
 #           For running all experiments, expect long runs (> 3h).
 # Author:   Sebastian Weyrer
-# Date:     2026-06-05
+# Date:     2026-07-02
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

@@ -6,15 +6,15 @@
 #           (ANCF) with a sliding joint as the reference formulation and
 #           compares a Non-Reduced (NR) Euler-Bernulli (EB) beam, OPTIONALLY a
 #           Specifically for one configuration Reduced (SR) EB beam (which
-#           breaks the solver) and a globally (Parametric Model order Reduction
-#           (PMR)) reduced EB beam with it.
+#           INTENTIONALLY breaks the solver) and a globally (Parametric Model
+#           order Reduction (PMR)) reduced EB beam with it.
 #           The sliding joint for the EB beams is implemented using Lagrange
 #           multipliers (q-derivative of constraint equations -> Jacobian C_q).
 #           Remarks on ghraphics: The beam class ('beams.py') has it's own
 #           graphics functionality for the beam but not constraints etc.. Here,
 #           'utility.py' provides functionality.
 # Author:   Sebastian Weyrer
-# Date:     2026-05-19
+# Date:     2026-07-02
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -26,11 +26,13 @@ from exudyn.utilities import *
 from beams import EulerBernulliBeam, BeamTemplate
 from utilities import *
 PrintHeadlineToConsole(text='BoomPMR')
+exu.RequireVersion('1.10.0')
 print('EXUDYN says hello with version', exu.config.Version() + '.')
 plt.close('all')
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # define bahvior of script and the boom
+testCase = 'evolved' # or 'simple'          # define the test case that is used to demonstrate method
 # parameters of the boom
 length = 5                                  # [m] length of boom
 rhoA = 78 #490 #78                          # [kg/m] mass per length of beam
@@ -79,59 +81,51 @@ standardColors, labelList, rawDataLabelList, markerList, timeStr, slidingStr = G
 
 #%% define a function that returns a sliding joint position and a load on the tip
 print('Info: Velocity of sliding joint:', str(abs(stopPosition-startPosition)/(stopTime-startTime)) + 'm/s.')
-# def SlidingJointFunction(t, startPosition=startPosition, stopPosition=stopPosition,
-#                          startTime=startTime, stopTime=stopTime):
-#     if solveInMinimalCoordinatesWithRadau:
-#         return length/2
-#     if t < startTime:
-#         return startPosition
-#     if t > stopTime:
-#         return stopPosition
-#     else:
-#         return startPosition + ((stopPosition-startPosition)/(stopTime-startTime)) * (t-startTime)
-# NOTE: this only works for interpolated BC since with no interpolation node-flickering is prevented
-def SlidingJointFunction(t, startPosition=startPosition, stopPosition=stopPosition,
-                         startTime=startTime, stopTime=stopTime):
-    if t < startTime:
-        return startPosition
-    if t > stopTime:
-        return startPosition
-    else:
-        duration = (stopTime-startTime) / 2
-        if t > startTime and t < (startTime+duration):
-            return startPosition + ((stopPosition-startPosition)/(duration)) * (t-startTime) 
+if testCase == 'simple':
+    def SlidingJointFunction(t, startPosition=startPosition, stopPosition=stopPosition,
+                             startTime=startTime, stopTime=stopTime):
+        if solveInMinimalCoordinatesWithRadau:
+            return length/2
+        if t < startTime:
+            return startPosition
+        if t > stopTime:
+            return stopPosition
         else:
-            return stopPosition - ((stopPosition-startPosition)/(duration)) * (t-(startTime+duration))
-# def LoadTipFunction(mbs, t, load):
-#     # # excite the 1st eigenmode of sliding joint being at node 22
-#     # omega = np.sqrt(111.31172747)
-#     # # excite the 2nd eigenmode of sliding joint being at node 22
-#     # omega = np.sqrt(1747.41342898)
-#     # # excite the 3rd eigenmode of sliding joint being at node 22
-#     # omega = np.sqrt(8417.44841418)
-#     # return 50 * sin(omega*t)
-#     return -A
-# def LoadTipFunction(mbs, t, load):
-#     A = - 50
-#     fStart = 1      # [Hz] starting frequency of the chirp
-#     fEnd = 10       # [Hz] last frequency of the chirp
-#     TChirp = 10     # [s] duration of the chirp
-#     if t <= TChirp:
-#         f = fStart + (fEnd - fStart) * t / TChirp
-#         return A * np.sin(2*np.pi*f*t)
-#     else:
-#         return A
-def LoadTipFunction(mbs, t, load):
-    fStart = 1
-    fEnd = 10
-    tChirp = tExperiment / 2
-    if t <= tChirp:
-        phase = 2 * np.pi * (fStart * t + (fEnd - fStart) * (t**2 / (2 * tChirp)))
-    else:
-        tLocal = t - tChirp
-        phaseAtSwitch = 2 * np.pi * (fStart * tChirp + (fEnd - fStart) * (tChirp / 2))
-        phase = phaseAtSwitch + 2 * np.pi * (fEnd * tLocal - (fEnd - fStart) * (tLocal**2 / (2 * tChirp)))
-    return A * np.sin(phase)
+            return startPosition + ((stopPosition-startPosition)/(stopTime-startTime)) * (t-startTime)
+    def LoadTipFunction(mbs, t, load):
+        # # excite the 1st eigenmode of sliding joint being at node 22
+        # omega = np.sqrt(111.31172747)
+        # # excite the 2nd eigenmode of sliding joint being at node 22
+        # omega = np.sqrt(1747.41342898)
+        # # excite the 3rd eigenmode of sliding joint being at node 22
+        # omega = np.sqrt(8417.44841418)
+        # return 50 * sin(omega*t)
+        return -A
+elif testCase == 'evolved':
+    # NOTE: this only works for interpolated BC since with no interpolation node-flickering is prevented
+    def SlidingJointFunction(t, startPosition=startPosition, stopPosition=stopPosition,
+                             startTime=startTime, stopTime=stopTime):
+        if t < startTime:
+            return startPosition
+        if t > stopTime:
+            return startPosition
+        else:
+            duration = (stopTime-startTime) / 2
+            if t > startTime and t < (startTime+duration):
+                return startPosition + ((stopPosition-startPosition)/(duration)) * (t-startTime) 
+            else:
+                return stopPosition - ((stopPosition-startPosition)/(duration)) * (t-(startTime+duration))
+    def LoadTipFunction(mbs, t, load):
+        fStart = 1
+        fEnd = 10
+        tChirp = tExperiment / 2
+        if t <= tChirp:
+            phase = 2 * np.pi * (fStart * t + (fEnd - fStart) * (t**2 / (2 * tChirp)))
+        else:
+            tLocal = t - tChirp
+            phaseAtSwitch = 2 * np.pi * (fStart * tChirp + (fEnd - fStart) * (tChirp / 2))
+            phase = phaseAtSwitch + 2 * np.pi * (fEnd * tLocal - (fEnd - fStart) * (tLocal**2 / (2 * tChirp)))
+        return A * np.sin(phase)
 
 #%% create the beams (non reduced and globally reduced)
 PrintHeadlineToConsole(text='Setting up beams')

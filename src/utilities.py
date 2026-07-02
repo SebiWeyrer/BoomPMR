@@ -2,7 +2,7 @@
 #
 # Details:  Utilities for the 'BoomPMR'-Project.
 # Author:   Sebastian Weyrer
-# Date:     2026-05-19
+# Date:     2026-07-02
 #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -133,11 +133,19 @@ def GetGraphicsOfConstraintsAndAddBasis(mbs, objectNumber, SlidingJointFunction,
     # if addSpecificallyReducedBeam:
     #     graphicsData += [graphics.Basis(origin=[0, yReferenceOffsetBeamSR, 0], length=0.5)]
     graphicsData += [graphics.Basis(origin=[0, yReferenceOffsetBeamPMR, 0], length=0.5)]
-    graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetANCF+yTextOffset, 0], text=labelList[0], fontSize=18)]
-    graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetBeamNR+yTextOffset, 0], text=labelList[1], fontSize=18)]
-    # if addSpecificallyReducedBeam:
-    #     graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetBeamSR+yTextOffset, 0], text='spec. reduced')]
-    graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetBeamPMR+yTextOffset, 0], text=labelList[2], fontSize=18)]
+    try:
+        exu.RequireVersion('1.10.160') # internal developer version
+        oldExudynVersion = False
+    except:
+        oldExudynVersion = True
+    if oldExudynVersion:
+        graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetANCF+yTextOffset, 0], text=labelList[0])]
+        graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetBeamNR+yTextOffset, 0], text=labelList[1])]
+        graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetBeamPMR+yTextOffset, 0], text=labelList[2])]
+    else:
+        graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetANCF+yTextOffset, 0], text=labelList[0], fontSize=18)]
+        graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetBeamNR+yTextOffset, 0], text=labelList[1], fontSize=18)]
+        graphicsData += [graphics.Text(point=[xTextOffset, yReferenceOffsetBeamPMR+yTextOffset, 0], text=labelList[2], fontSize=18)]
     return graphicsData
 
 # helper function that adds ANCF 2D Beam with sliding joint and requested sensors to a mbs
