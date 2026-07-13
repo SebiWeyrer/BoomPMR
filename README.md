@@ -1,6 +1,6 @@
 # BoomPMR
 
-**Model Order Reduction of a Sliding Beam using a Global Approach: Formulation and Evaluation**
+**Model Order Reduction of a Sliding Beam using a Global Basis: Formulation and Evaluation**
 
 This repository accompanies the paper. It contains the implementation used to construct and evaluate a global reduction basis for sliding beams, as found in telescopic structures, using a constraint multibody formalism.
 
