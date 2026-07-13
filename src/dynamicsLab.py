@@ -791,7 +791,7 @@ for i in range(2):
     axTipDisplacementHamiltonianHNum[1].plot(time, EHNumPMRPerTestCaseList[i], markerList[2], markevery=markEvery,
                                   label=labelList[2])
     axTipDisplacementHamiltonianHNum[0].set_ylabel('transv.\ntip displacement in m')
-    axTipDisplacementHamiltonianHNum[1].set_ylabel('Energy of\nthe system in J')
+    axTipDisplacementHamiltonianHNum[1].set_ylabel('energy of\nthe system in J')
     labelX = -0.13  # tune this value
     axTipDisplacementHamiltonianHNum[0].yaxis.set_label_coords(labelX, 0.5)
     axTipDisplacementHamiltonianHNum[1].yaxis.set_label_coords(labelX, 0.5)
