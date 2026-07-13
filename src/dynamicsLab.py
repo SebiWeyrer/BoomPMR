@@ -454,8 +454,8 @@ axRe.set_xticklabels(nSnapshotsList[xTickIndices])
 axRe.set_yticks(yTickIndices)
 axRe.set_yticklabels(nEigenmodesPerSnapshotList[yTickIndices])
 axRe.invert_yaxis()
-axRe.set_xlabel(r'number $n_\mathrm{snap.}$ of snapshots')
-axRe.set_ylabel(r'number $r_\mathrm{snap.}$ of' + '\neigenmodes per snapshot')
+axRe.set_xlabel(r'number $n_\mathrm{snap}$ of snapshots')
+axRe.set_ylabel(r'number $r_\mathrm{snap}$ of' + '\neigenmodes per snapshot')
 plt.colorbar(im, label='norm. RMS error transv.\nbeam displacement')
 # contour
 contourLevel = 26
@@ -472,7 +472,7 @@ flatIdx = np.argsort(normDisplacementErrorRePMRMatrix, axis=None)[:nLowest]
 rows, cols = np.unravel_index(flatIdx, normDisplacementErrorRePMRMatrix.shape)
 for r, c in zip(rows, cols):
     axRe.add_patch(mpatches.Rectangle((c - 0.5, r - 0.5), 1, 1, linewidth=1.5, edgecolor='black', facecolor='none', zorder=5))
-legendHandles = [Line2D([0], [0], color='black', linewidth=2, label=r'$n_\mathrm{snap.} \, r_\mathrm{snap.} = ' + str(contourLevel) + '$'),
+legendHandles = [Line2D([0], [0], color='black', linewidth=2, label=r'$n_\mathrm{snap} \, r_\mathrm{snap} = ' + str(contourLevel) + '$'),
                  mpatches.Rectangle((0, 0), 1, 1, linewidth=1.5, edgecolor='black', facecolor='none', label=str(nLowest) + ' lowest errors'),]
 axRe.legend(handles=legendHandles, loc='upper right')
 SaveFig(figRe, figPath, 'E_reductionError', closeFig=False, saveFig=saveFigures)
@@ -582,7 +582,7 @@ for qScPMROfPairList in qScPMRList:
 figErrorSc, axErrorSc = plt.subplots(2, 1, figsize=[textWidth, 3.1], sharex=True)
 nGlobalModesMax = 0
 for i, (normDisplacementErrorScPMROfPairList, strainSumErrorScPMROfPairList) in enumerate(zip(normDisplacementErrorScPMRList, strainSumErrorScPMRList)):
-    label = r'$n_\mathrm{snap.}=' + str(pairsToInvestigateList[i][0]) + r'$, $r_\mathrm{snap.}=' + str(pairsToInvestigateList[i][1]) + r'$'
+    label = r'$n_\mathrm{snap}=' + str(pairsToInvestigateList[i][0]) + r'$, $r_\mathrm{snap}=' + str(pairsToInvestigateList[i][1]) + r'$'
     x = nGlobalModesToInvestigatePerPairList[i]  # actual mode numbers
     if max(x) > nGlobalModesMax:
         nGlobalModesMax = max(x)
@@ -607,7 +607,7 @@ axErrorSc[1].legend()
 axErrorSc[0].set_xticks(np.arange(3, nGlobalModesMax, 3))
 axErrorSc[0].set_ylabel('norm. RMS error transv.\nbeam displacement')
 axErrorSc[1].set_ylabel('abs. error\nstrain sum in J')
-axErrorSc[1].set_xlabel(r'number $r_\mathrm{glob.}$ of global modes in global reduction basis')
+axErrorSc[1].set_xlabel(r'number $r_\mathrm{glob}$ of global modes in global reduction basis')
 axErrorSc[1].set_xlim([2, nGlobalModesMax])
 figErrorSc.tight_layout(rect=[0, 0, 1, 1.1]) # in pdf it must be rescaled a bit due to long label
 SaveFig(figErrorSc, figPath, 'E_selectedCombosError', closeFig=False, saveFig=saveFigures)
@@ -618,7 +618,7 @@ for i, s in enumerate(sList):
         nSingularValuesToPlot = len(s)
     else:
         nSingularValuesToPlot = nMaxSingularValuesToPlot
-    label = r'$n_\mathrm{snap.}=' + str(pairsToInvestigateList[i][0]) + r'$, $r_\mathrm{snap.}=' + str(pairsToInvestigateList[i][1]) + r'$'
+    label = r'$n_\mathrm{snap}=' + str(pairsToInvestigateList[i][0]) + r'$, $r_\mathrm{snap}=' + str(pairsToInvestigateList[i][1]) + r'$'
     # axSingularValuesSc[0].plot(range(len(s))[:nSingularValuesToPlot], s[:nSingularValuesToPlot], markerList[i], label=label)
     axSingularValuesSc.semilogy(range(len(s))[:nSingularValuesToPlot], s[:nSingularValuesToPlot], markerList[i], label=label,
                                 markevery=2)
@@ -791,7 +791,7 @@ for i in range(2):
     axTipDisplacementHamiltonianHNum[1].plot(time, EHNumPMRPerTestCaseList[i], markerList[2], markevery=markEvery,
                                   label=labelList[2])
     axTipDisplacementHamiltonianHNum[0].set_ylabel('transv.\ntip displacement in m')
-    axTipDisplacementHamiltonianHNum[1].set_ylabel('Hamiltonian of\nthe system in J')
+    axTipDisplacementHamiltonianHNum[1].set_ylabel('Energy of\nthe system in J')
     labelX = -0.13  # tune this value
     axTipDisplacementHamiltonianHNum[0].yaxis.set_label_coords(labelX, 0.5)
     axTipDisplacementHamiltonianHNum[1].yaxis.set_label_coords(labelX, 0.5)
@@ -802,9 +802,9 @@ for i in range(2):
     axTipDisplacementHamiltonianHNum[1].set_xticks(np.arange(0, time[-1]+1, 3))
     axTipDisplacementHamiltonianHNum[1].set_xlabel(timeStr)
     if i == 0:
-        SaveFig(figTipDisplacementHamiltonianHNum, figPath, 'E_hamiltonianTipDisplacementSimple', closeFig=False, saveFig=saveFigures)
+        SaveFig(figTipDisplacementHamiltonianHNum, figPath, 'E_energyTipDisplacementSimple', closeFig=False, saveFig=saveFigures)
     elif i == 1:
-        SaveFig(figTipDisplacementHamiltonianHNum, figPath, 'E_hamiltonianTipDisplacementEvolved', closeFig=False, saveFig=saveFigures)
+        SaveFig(figTipDisplacementHamiltonianHNum, figPath, 'E_energyTipDisplacementEvolved', closeFig=False, saveFig=saveFigures)
 
 #%% computational speed
 PrintHeadlineToConsole(text='Computational Speed Experiment: "Cs"')
