@@ -66,7 +66,7 @@ h = 1e-3            # [s] step size
 textWidth = 5.15
 SetMatplotlibSettings()
 standardColors, labelList, rawDataLabelList, markerList, timeStr, slidingStr = GetStandardValues()
-parentDir = Path.cwd().parent
+parentDir = Path.cwd().parent.parent
 figPath = parentDir / 'LaTeX' / 'figures'
 if fastComputation:
     longComputationToggle = 0
