@@ -24,7 +24,6 @@ If you use this repository in your work, please cite the paper:
   title   = {{Model Order Reduction of a Sliding Beam using a Global Basis: Formulation and Evaluation}},
   year    = {2026},
   doi     = {10.48550/arXiv.2607.11794},
-  groups  = {Multibody Dynamics, Own, Parametric},
 }
 ```
 
