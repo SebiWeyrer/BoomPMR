@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 from exudyn.utilities import *
 from beams import EulerBernulliBeam, BeamTemplate
 from utilities import *
+from pathlib import Path
 PrintHeadlineToConsole(text='BoomPMR')
 exu.RequireVersion('1.10.0')
 print('EXUDYN says hello with version', exu.config.Version() + '.')
@@ -76,6 +77,9 @@ sensorOutputVariableTypeANCFList = [exu.OutputVariableType.Displacement,
                                     exu.OutputVariableType.ForceLocal,
                                     exu.OutputVariableType.TorqueLocal]
 # standard values for visualization, plotting, etc. (standardColors is used as color for EXUDYN visualization of beam)
+textWidth = 5.15
+parentDir = Path.cwd().parent.parent
+figPath = parentDir / 'LaTeX' / 'figures'
 SetMatplotlibSettings()
 standardColors, labelList, rawDataLabelList, markerList, timeStr, slidingStr = GetStandardValues(nGlobalModes=nGlobalModes)
 
@@ -149,6 +153,20 @@ if addSpecificallyReducedBeam:
 #%% do GLOBAL reduction
 beamPMR.GlobalReduceBeamWrapper(nGlobalModes=nGlobalModes, nSnapshots=nSnapshots, nEigenmodesPerSnapshot=nEigenmodesPerSnapshot,
                                 plot=True, figSize=[5, 7], verbose=True)
+globalReductionBasis = beamPMR.reductionBasis
+
+#%% plot global reduction basis
+nGlobalModesToPlot = 3
+coordinateToPlot = 1
+colors = ['#22CC22', '#2E86A0','#FF5555']
+figGlobalBasis, axGlobalBasis = plt.subplots(1, 1, figsize=[textWidth, 2])
+for i in range(nGlobalModesToPlot):
+    axGlobalBasis.plot(np.arange(0, beamPMR.nNodes), globalReductionBasis[1::beamPMR.nDOFsPerNode, i], color=colors[i], label='global mode ' + str(i+1))
+axGlobalBasis.legend()
+axGlobalBasis.grid()
+axGlobalBasis.set_ylabel('y def. component')
+axGlobalBasis.set_xlabel('node number')
+SaveFig(figGlobalBasis, figPath, 'E_globalModes', closeFig=False, saveFig=False)
 
 #%% set up simulations for ANCF beam, non reduced, (specifically rediced), and globally reduced beam
 SC = exu.SystemContainer()

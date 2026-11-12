@@ -892,7 +892,11 @@ computationTimePMRPerTestCaseList = resultsDictCs['computationTimePMRPerTestCase
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
 # plot
-labels = labelList[0:3]
+excludeANCF = True
+if excludeANCF:
+    labels = labelList[1:3]
+else:
+    labels = labelList[0:3]
 dataList = [computationTimeANCFPerTestCaseList, computationTimeNRPerTestCaseList, computationTimePMRPerTestCaseList]
 meanComputationTimeSimpleCs = []
 meanComputationTimeEvolvedCs = []
@@ -915,9 +919,10 @@ for i in range(2):
         label = r'simple'
     else:
         label = r'evolved'
-    rects = axCs.bar(x + offset, meanComputationTimeCs[i], width, label=label,
-                     # yerr=stdComputationTimeCs[i], capsize=5
-                     )
+    if excludeANCF:
+        rects = axCs.bar(x + offset, meanComputationTimeCs[i][1:], width, label=label)
+    else:
+        rects = axCs.bar(x + offset, meanComputationTimeCs[i], width, label=label)
     axCs.bar_label(rects, padding=3, fmt='%.2f')
     multiplier += 1
 axCs.set_yscale('log')
