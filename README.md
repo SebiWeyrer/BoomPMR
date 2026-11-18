@@ -13,6 +13,9 @@ See the implementation notes in the paper for further details.
 - Aki Mikkola
 - Grzegorz Orzechowski
 
+## Exudyn Version
+The numerical experiments can be run with Exudyn version 1.10 or newer. The convergence analysis requires version 1.13.7 or newer: reworked solver settings resolve an error plateau that older versions produce for the ANCF approach. With older versions, the ANCF error stops decreasing as the discretization is refined.
+
 ## Citation
 
 If you use this repository in your work, please cite the paper:

@@ -161,10 +161,11 @@ coordinateToPlot = 1
 colors = ['#22CC22', '#2E86A0','#FF5555']
 figGlobalBasis, axGlobalBasis = plt.subplots(1, 1, figsize=[textWidth, 2])
 for i in range(nGlobalModesToPlot):
-    axGlobalBasis.plot(np.arange(0, beamPMR.nNodes), globalReductionBasis[1::beamPMR.nDOFsPerNode, i], color=colors[i], label='global mode ' + str(i+1))
+    axGlobalBasis.plot(np.arange(1, beamPMR.nNodes+1), globalReductionBasis[1::beamPMR.nDOFsPerNode, i], color=colors[i], label='global mode ' + str(i+1))
 axGlobalBasis.legend()
+axGlobalBasis.set_xticks(range(1, 52, 10))
 axGlobalBasis.grid()
-axGlobalBasis.set_ylabel('y def. component')
+axGlobalBasis.set_ylabel('transv. displacement\n component')
 axGlobalBasis.set_xlabel('node number')
 SaveFig(figGlobalBasis, figPath, 'E_globalModes', closeFig=False, saveFig=False)
 

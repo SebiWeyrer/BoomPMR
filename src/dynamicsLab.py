@@ -216,117 +216,131 @@ SaveFig(figTc, figPath, 'E_testCases', closeFig=False, saveFig=saveFigures)
 
 #%% do convergence analysis to get good amount of ANCF and beam elements
 PrintHeadlineToConsole(text='Convergence Analysis Experiment: "Ca"')
+try:
+    exu.RequireVersion('1.13.7') # this only runs when a newer version is installed
+except:
+    skipCa = True
+    print('WARNING: The convergence analysis needs a version higher than 1.13.7; skipping the analysis; or only load results if you already have them!')
+skipCa = False
 if not onlyLoadResults:
-    # initialize beam (to inherit some data to ANCF beam)
-    beamCaNR = EulerBernulliBeam(beamTemplate=beamTemplateRubber)
+    if not skipCa:
+        # initialize beam (to inherit some data to ANCF beam)
+        beamCaNR = EulerBernulliBeam(beamTemplate=beamTemplateRubber)
+        
+        #++++++++++++++++++++++++++++++++++++++++++++++++++
+        # ANCF elements
+        nElementsCaANCFList = np.linspace(2, 44, 20*longComputationToggle+2, dtype=int)
+        startTime = tm.time()
+        nAnalysesCompleted = 0
+        nAnalyses= len(nElementsCaANCFList)
+        tipDisplacementCaANCFList = []
+        for i, nElementsCaANCF in enumerate(nElementsCaANCFList):
+            SC = exu.SystemContainer()
+            mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
+            nGround = mbs.AddNode(NodePointGround())
+            # this is needed to constrain ANCF beam on the 'left' side
+            mCoordGround = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nGround, coordinate=0,
+                                                              visualization=VMarkerNodeCoordinates()))
+            sensorOutputVariableTypeCaANCFList = [exu.OutputVariableType.Displacement]
+            sDictCaANCF = AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunctionEvolved, LoadTipFunctionEvolved, length=length, rhoA=beamCaNR.rhoA, EI=beamCaNR.EI, EA=beamCaNR.EA,
+                                                                        nElementsANCF=nElementsCaANCF, mCoordGround=mCoordGround, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeCaANCFList,
+                                                                        beamNodeReferencePositionList=np.array([length])) # only add one sensor in the ANCF approach at tip
+            mbs.Assemble()
+            simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
+            mbs.SolveDynamic(simulationSettings=simulationSettings)
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # get results
+            outputDictCaANCF = GetOutputDictANCFFromSDictANCF(mbs, sDictANCF=sDictCaANCF, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeCaANCFList)
+            tipDisplacementCaANCFList += [outputDictCaANCF['OutputVariableType.Displacement'][:, -2]]
+            nAnalysesCompleted += 1
+            ProgressTracker(startTime, nAnalyses, nAnalysesCompleted, showETA=False)
+        AppendResultsToPKLFile(resultsFileName, 'Ca', {'nElementsCaANCFList': nElementsCaANCFList,
+                                                       'tipDisplacementCaANCFList': tipDisplacementCaANCFList})
+        
+        #++++++++++++++++++++++++++++++++++++++++++++++++++
+        # beam elements
+        nElementsCaNRList = np.linspace(2, 60, 28*longComputationToggle+2, dtype=int)
+        startTime = tm.time()
+        nAnalysesCompleted = 0
+        nAnalyses= len(nElementsCaNRList)
+        tipDisplacementCaNRList = []
+        for i, nElementsCaNR in enumerate(nElementsCaNRList):
+            SC = exu.SystemContainer()
+            mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
+            nGround = mbs.AddNode(NodePointGround())
+            mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates()))
+            beamCaNR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
+                                         nElements=nElementsCaNR, # OVERWRITE!
+                                         slidingJointFunction=SlidingJointFunctionEvolved,
+                                         loadTipFunction=LoadTipFunctionEvolved)
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # add beam to mbs
+            sCoordinatesCaNR, sCoordinates_tCaNR = beamCaNR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # simulate dynamically (WYSWYS)
+            mbs.Assemble()
+            simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
+            mbs.SolveDynamic(simulationSettings=simulationSettings)
+            
+            #++++++++++++++++++++++++++++++++++++++++++++++++++
+            # get results
+            _, time, qCaNR, q_tCaNR = beamCaNR.GetTimeAndCoordinates(mbs, sCoordinatesCaNR, sCoordinates_tCaNR)
+            tipDisplacementCaNRList += [qCaNR[:, -2]]
+            nAnalysesCompleted += 1
+            ProgressTracker(startTime, nAnalyses, nAnalysesCompleted, showETA=False)
+        AppendResultsToPKLFile(resultsFileName, 'Ca', {'nElementsCaNRList': nElementsCaNRList,
+                                                       'tipDisplacementCaNRList': tipDisplacementCaNRList})
+
+if not skipCa: # the results can be shown in any case (onlyLoadResults = True)
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # retreive results and compute interesting quantities
+    resultsDictCa = GetResultsDictFromPKLFile(resultsFileName, 'Ca')
+    # ANCF
+    nElementsCaANCFList = resultsDictCa['nElementsCaANCFList']
+    tipDisplacementCaANCFList = resultsDictCa['tipDisplacementCaANCFList']
+    errorCaANCFList = []
+    for tipDisplacementCaANCF in tipDisplacementCaANCFList[:-1]:
+        errorCaANCFList += [AbsError(tipDisplacementCaANCF, tipDisplacementCaANCFList[-1])]
+    errorCaANCFList += [0]
+    nElementsCaNRList = resultsDictCa['nElementsCaNRList']
+    tipDisplacementCaNRList = resultsDictCa['tipDisplacementCaNRList']
+    errorCaNRList = []
+    for tipDisplacementCaNR in tipDisplacementCaNRList[:-1]:
+        errorCaNRList += [AbsError(tipDisplacementCaNR, tipDisplacementCaNRList[-1])]
+    errorCaNRList += [0]
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
-    # ANCF elements
-    nElementsCaANCFList = np.linspace(2, 44, 20*longComputationToggle+2, dtype=int)
-    startTime = tm.time()
-    nAnalysesCompleted = 0
-    nAnalyses= len(nElementsCaANCFList)
-    tipDisplacementCaANCFList = []
-    for i, nElementsCaANCF in enumerate(nElementsCaANCFList):
-        SC = exu.SystemContainer()
-        mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
-        nGround = mbs.AddNode(NodePointGround())
-        # this is needed to constrain ANCF beam on the 'left' side
-        mCoordGround = mbs.AddMarker(MarkerNodeCoordinate(nodeNumber=nGround, coordinate=0,
-                                                          visualization=VMarkerNodeCoordinates(show=False)))
-        sensorOutputVariableTypeCaANCFList = [exu.OutputVariableType.Displacement]
-        sDictCaANCF = AddANCFBeamWithSlidingJointToMBSAndAddSensors(mbs, SlidingJointFunctionEvolved, LoadTipFunctionEvolved, length=length, rhoA=beamCaNR.rhoA, EI=beamCaNR.EI, EA=beamCaNR.EA,
-                                                                    nElementsANCF=nElementsCaANCF, mCoordGround=mCoordGround, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeCaANCFList,
-                                                                    beamNodeReferencePositionList=np.array([length])) # only add one sensor in the ANCF approach at tip
-        mbs.Assemble()
-        simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
-        mbs.SolveDynamic(simulationSettings=simulationSettings)
-        
-        #++++++++++++++++++++++++++++++++++++++++++++++++++
-        # get results
-        outputDictCaANCF = GetOutputDictANCFFromSDictANCF(mbs, sDictANCF=sDictCaANCF, sensorOutputVariableTypeANCFList=sensorOutputVariableTypeCaANCFList)
-        tipDisplacementCaANCFList += [outputDictCaANCF['OutputVariableType.Displacement'][:, -2]]
-        nAnalysesCompleted += 1
-        ProgressTracker(startTime, nAnalyses, nAnalysesCompleted, showETA=False)
-    AppendResultsToPKLFile(resultsFileName, 'Ca', {'nElementsCaANCFList': nElementsCaANCFList,
-                                                   'tipDisplacementCaANCFList': tipDisplacementCaANCFList})
-    
-    #++++++++++++++++++++++++++++++++++++++++++++++++++
-    # beam elements
-    nElementsCaNRList = np.linspace(2, 60, 28*longComputationToggle+2, dtype=int)
-    startTime = tm.time()
-    nAnalysesCompleted = 0
-    nAnalyses= len(nElementsCaNRList)
-    tipDisplacementCaNRList = []
-    for i, nElementsCaNR in enumerate(nElementsCaNRList):
-        SC = exu.SystemContainer()
-        mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
-        nGround = mbs.AddNode(NodePointGround())
-        mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
-        beamCaNR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
-                                     nElements=nElementsCaNR, # OVERWRITE!
-                                     slidingJointFunction=SlidingJointFunctionEvolved,
-                                     loadTipFunction=LoadTipFunctionEvolved)
-        
-        #++++++++++++++++++++++++++++++++++++++++++++++++++
-        # add beam to mbs
-        sCoordinatesCaNR, sCoordinates_tCaNR = beamCaNR.AddBeamToMBSAndAddSensors(mbs, mCoordsGround=mCoordsGround, show=False)
-        
-        #++++++++++++++++++++++++++++++++++++++++++++++++++
-        # simulate dynamically (WYSWYS)
-        mbs.Assemble()
-        simulationSettings = GetStandardSimulationAndSetVisualizationSettings(tEnd, h, exportFrames=False)
-        mbs.SolveDynamic(simulationSettings=simulationSettings)
-        
-        #++++++++++++++++++++++++++++++++++++++++++++++++++
-        # get results
-        _, time, qCaNR, q_tCaNR = beamCaNR.GetTimeAndCoordinates(mbs, sCoordinatesCaNR, sCoordinates_tCaNR)
-        tipDisplacementCaNRList += [qCaNR[:, -2]]
-        nAnalysesCompleted += 1
-        ProgressTracker(startTime, nAnalyses, nAnalysesCompleted, showETA=False)
-    AppendResultsToPKLFile(resultsFileName, 'Ca', {'nElementsCaNRList': nElementsCaNRList,
-                                                   'tipDisplacementCaNRList': tipDisplacementCaNRList})
-
-#++++++++++++++++++++++++++++++++++++++++++++++++++
-# retreive results and compute inetersting quantities
-resultsDictCa = GetResultsDictFromPKLFile(resultsFileName, 'Ca')
-# ANCF
-nElementsCaANCFList = resultsDictCa['nElementsCaANCFList']
-tipDisplacementCaANCFList = resultsDictCa['tipDisplacementCaANCFList']
-errorCaANCFList = []
-for tipDisplacementCaANCF in tipDisplacementCaANCFList[:-1]:
-    errorCaANCFList += [AbsError(tipDisplacementCaANCF, tipDisplacementCaANCFList[-1])]
-errorCaANCFList += [0]
-nElementsCaNRList = resultsDictCa['nElementsCaNRList']
-tipDisplacementCaNRList = resultsDictCa['tipDisplacementCaNRList']
-errorCaNRList = []
-for tipDisplacementCaNR in tipDisplacementCaNRList[:-1]:
-    errorCaNRList += [AbsError(tipDisplacementCaNR, tipDisplacementCaNRList[-1])]
-errorCaNRList += [0]
-
-#++++++++++++++++++++++++++++++++++++++++++++++++++
-# plot
-figCa, axCa = plt.subplots(1, 1, figsize=[textWidth, 2.2])
-nDOFsANCFList = (nElementsCaANCFList + 1) * 4 # 4 DOfs per node
-nDOFsNRList = (nElementsCaNRList + 1) * 3 # 3 DOfs per node
-axCa.loglog(nDOFsANCFList[:-1], errorCaANCFList[:-1], '-o', label=labelList[0], color=standardColors[0])
-axCa.loglog(nDOFsNRList[:-1], errorCaNRList[:-1], '-*', label=labelList[1], color=standardColors[1])
-axCa.grid()
-axCa.legend()
-axCa.set_xlabel('number of DOFs')
-axCa.set_ylabel('abs. error transv.\ntip displacement in m')
-SaveFig(figCa, figPath, 'E_convergenceAnalysis', closeFig=False, saveFig=saveFigures)
+    # plot
+    figCa, axCa = plt.subplots(1, 1, figsize=[textWidth, 2.2])
+    nDOFsANCFList = (nElementsCaANCFList + 1) * 4 # 4 DOfs per node
+    nDOFsNRList = (nElementsCaNRList + 1) * 3 # 3 DOfs per node
+    axCa.loglog(nDOFsANCFList[:-1], errorCaANCFList[:-1], '-o', label=labelList[0], color=standardColors[0])
+    axCa.loglog(nDOFsNRList[:-1], errorCaNRList[:-1], '-*', label=labelList[1], color=standardColors[1])
+    axCa.grid()
+    axCa.legend()
+    axCa.set_xlabel('number of DOFs')
+    axCa.set_ylabel('abs. error transv.\ntip displacement in m')
+    SaveFig(figCa, figPath, 'E_convergenceAnalysis', closeFig=False, saveFig=saveFigures)
 
 #%% compute displacement error of globally reduced beam vs. non-reduced beam to obtain reduction error
 PrintHeadlineToConsole(text='Reduction Error Experiment: "Re"')
-if not onlyLoadResults:
-    AppendResultsToPKLFile(resultsFileName, 'Re', {'qRePMRList':[]})
+def ExperimentString(nGlobalModesEvaluationRange=[16, 20]):
+    if nGlobalModesEvaluationRange[-1] == 20:
+        # also the old version has to work with the old results file
+        # if rerun, the old version just gets overwritten
+        return ''
+    return str(nGlobalModesEvaluationRange[-1])
+def ReductionErrorExperiment(nGlobalModesEvaluationRange=[16, 20]):
+    print('Investigating global mode range', nGlobalModesEvaluationRange)
+    AppendResultsToPKLFile(resultsFileName, 'Re' + ExperimentString(nGlobalModesEvaluationRange), {'qRePMRList':[]})
     # determine combinations that should be tested
     nSnapshotsList = np.arange(1, 30+1, 1)
     nEigenmodesPerSnapshotList = np.arange(1, 16+1, 1)
     nMinGlobalModes = 3
     nMaxGlobalModes = 116*longComputationToggle+4
-    nGlobalModesEvaluationRange = [16, 20]
     nGlobalModesEvaluation = nGlobalModesEvaluationRange[1] - nGlobalModesEvaluationRange[0] + 1
     nAnalyses = 0
     pairsToInvestigateList = []
@@ -372,7 +386,7 @@ if not onlyLoadResults:
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # get results
     _, time, qReNR, q_tReNR = beamReNR.GetTimeAndCoordinates(mbs, sCoordinatesReNR, sCoordinates_tReNR)
-    AppendResultsToPKLFile(resultsFileName, 'Re', {'qReNR':qReNR})
+    AppendResultsToPKLFile(resultsFileName, 'Re' + ExperimentString(nGlobalModesEvaluationRange), {'qReNR':qReNR})
     
     #++++++++++++++++++++++++++++++++++++++++++++++++++
     # now process the pairs that should be investigated
@@ -412,77 +426,109 @@ if not onlyLoadResults:
             nAnalysesCompleted += 1
             ProgressTracker(startTime, nAnalyses, nAnalysesCompleted)
         # to save RAM, we write the results file here already with special append function
-        AppendResultsToPKLFile(resultsFileName, 'Re', {'qRePMRList':qRePMROfPairList}, appendList=True)
-    AppendResultsToPKLFile(resultsFileName, 'Re', {'nSnapshotsList':nSnapshotsList,
-                                                   'nEigenmodesPerSnapshotList':nEigenmodesPerSnapshotList,
-                                                   'pairsToInvestigateList': pairsToInvestigateList,
-                                                   'nGlobalModesToInvestigatePerPairList': nGlobalModesToInvestigatePerPairList})
+        AppendResultsToPKLFile(resultsFileName, 'Re' + ExperimentString(nGlobalModesEvaluationRange), {'qRePMRList':qRePMROfPairList}, appendList=True)
+    AppendResultsToPKLFile(resultsFileName, 'Re' + ExperimentString(nGlobalModesEvaluationRange), {'nSnapshotsList':nSnapshotsList,
+                                                                                                   'nEigenmodesPerSnapshotList':nEigenmodesPerSnapshotList,
+                                                                                                   'pairsToInvestigateList': pairsToInvestigateList,
+                                                                                                   'nGlobalModesToInvestigatePerPairList': nGlobalModesToInvestigatePerPairList})
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
-# retreive results and compute inetersting quantities
-resultsDictRe = GetResultsDictFromPKLFile(resultsFileName, 'Re')
-qReNR = resultsDictRe['qReNR']
-nSnapshotsList = resultsDictRe['nSnapshotsList']
-nEigenmodesPerSnapshotList = resultsDictRe['nEigenmodesPerSnapshotList']
-pairsToInvestigateList = resultsDictRe['pairsToInvestigateList']
-qRePMRList = resultsDictRe['qRePMRList']
-nAnalyses = 0
-normDisplacementErrorRePMRList = []
-for qRePMROfPairList in qRePMRList:
-    normDisplacementErrorRePMROfPairList = []
-    for qRePMR in qRePMROfPairList:
-        normDisplacementErrorRePMROfPairList += [NRMSE(qRePMR[:, 1::beamRefNR.nDOFsPerNode], qReNR[:, 1::beamRefNR.nDOFsPerNode])]
-        nAnalyses += 1
-    normDisplacementErrorRePMRList += [np.mean(normDisplacementErrorRePMROfPairList)]
-print('Loading a total of', nAnalyses, 'analyses.')
-normDisplacementErrorRePMRMatrix = np.full([len(nEigenmodesPerSnapshotList), len(nSnapshotsList)], np.nan)
-for i, pair in enumerate(pairsToInvestigateList):
-    nSnapshots = pair[0]
-    nEigenmodesPerSnapshot = pair[1]
-    idxSnapshot = np.where(nSnapshotsList == nSnapshots)
-    idxEigenmodesPerSnapshot = np.where(nEigenmodesPerSnapshotList == nEigenmodesPerSnapshot)
-    normDisplacementErrorRePMRMatrix[idxEigenmodesPerSnapshot, idxSnapshot] = normDisplacementErrorRePMRList[i]
+# test different budgets for number of global modes
+nGlobalModesEvaluationRangeList = [[16, 20],
+                                   [21, 25]
+                                   ]
+if not onlyLoadResults:
+    for nGlobalModesEvaluationRange in nGlobalModesEvaluationRangeList:
+        ReductionErrorExperiment(nGlobalModesEvaluationRange=nGlobalModesEvaluationRange)
+        
+#++++++++++++++++++++++++++++++++++++++++++++++++++
+# create figure with vertically stacked heatmaps sharing one x-axis
+figRe, axesRe = plt.subplots(len(nGlobalModesEvaluationRangeList), 1, figsize=[textWidth, 2.1 * len(nGlobalModesEvaluationRangeList)], sharex=True, constrained_layout=True)
+axesRe = np.atleast_1d(axesRe)
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
-# plot
-figRe, axRe = plt.subplots(1, 1, figsize=[textWidth, 2.5])
-im = axRe.imshow(normDisplacementErrorRePMRMatrix, cmap='RdYlGn_r', vmin=0, vmax=1)
-xTickIndices = np.round(np.linspace(0, len(nSnapshotsList) - 1, 5)).astype(int)
-yTickIndices = np.round(np.linspace(0, len(nEigenmodesPerSnapshotList) - 1, 5)).astype(int)
-axRe.set_xticks(xTickIndices)
-axRe.set_xticklabels(nSnapshotsList[xTickIndices])
-axRe.set_yticks(yTickIndices)
-axRe.set_yticklabels(nEigenmodesPerSnapshotList[yTickIndices])
-axRe.invert_yaxis()
-axRe.set_xlabel(r'number $n_\mathrm{snap}$ of snapshots')
-axRe.set_ylabel(r'number $r_\mathrm{snap}$ of' + '\neigenmodes per snapshot')
-plt.colorbar(im, label='norm. RMS error transv.\nbeam displacement')
-# contour
-contourLevel = 26
-xi = np.linspace(0, len(nSnapshotsList) - 1, 500)
-yi = np.linspace(0, len(nEigenmodesPerSnapshotList) - 1, 500)
-XI, YI = np.meshgrid(xi, yi)
-snapVals = np.interp(xi, np.arange(len(nSnapshotsList)), nSnapshotsList)
-eigenVals = np.interp(yi, np.arange(len(nEigenmodesPerSnapshotList)), nEigenmodesPerSnapshotList)
-SNAP, EIGEN = np.meshgrid(snapVals, eigenVals)
-cs = axRe.contour(XI, YI, SNAP * EIGEN, levels=[contourLevel], colors='black', linewidths=2)
-# rectangles to show nLowest combos
-nLowest = 15
-flatIdx = np.argsort(normDisplacementErrorRePMRMatrix, axis=None)[:nLowest]
-rows, cols = np.unravel_index(flatIdx, normDisplacementErrorRePMRMatrix.shape)
-for r, c in zip(rows, cols):
-    axRe.add_patch(mpatches.Rectangle((c - 0.5, r - 0.5), 1, 1, linewidth=1.5, edgecolor='black', facecolor='none', zorder=5))
-legendHandles = [Line2D([0], [0], color='black', linewidth=2, label=r'$n_\mathrm{snap} \, r_\mathrm{snap} = ' + str(contourLevel) + '$'),
-                 mpatches.Rectangle((0, 0), 1, 1, linewidth=1.5, edgecolor='black', facecolor='none', label=str(nLowest) + ' lowest errors'),]
-axRe.legend(handles=legendHandles, loc='upper right')
+# retreive results and compute interesting quantities
+for iRange, nGlobalModesEvaluationRange in enumerate(nGlobalModesEvaluationRangeList):
+    resultsDictRe = GetResultsDictFromPKLFile(resultsFileName, 'Re' + ExperimentString(nGlobalModesEvaluationRange))
+    qReNR = resultsDictRe['qReNR']
+    nSnapshotsList = resultsDictRe['nSnapshotsList']
+    nEigenmodesPerSnapshotList = resultsDictRe['nEigenmodesPerSnapshotList']
+    pairsToInvestigateList = resultsDictRe['pairsToInvestigateList']
+    qRePMRList = resultsDictRe['qRePMRList']
+    nAnalyses = 0
+    normDisplacementErrorRePMRList = []
+    for qRePMROfPairList in qRePMRList:
+        normDisplacementErrorRePMROfPairList = []
+        for qRePMR in qRePMROfPairList:
+            normDisplacementErrorRePMROfPairList += [NRMSE(qRePMR[:, 1::beamRefNR.nDOFsPerNode], qReNR[:, 1::beamRefNR.nDOFsPerNode])]
+            nAnalyses += 1
+        normDisplacementErrorRePMRList += [np.mean(normDisplacementErrorRePMROfPairList)]
+    print('Loading a total of', nAnalyses, 'analyses.')
+    normDisplacementErrorRePMRMatrix = np.full([len(nEigenmodesPerSnapshotList), len(nSnapshotsList)], np.nan)
+    for i, pair in enumerate(pairsToInvestigateList):
+        nSnapshots = pair[0]
+        nEigenmodesPerSnapshot = pair[1]
+        idxSnapshot = np.where(nSnapshotsList == nSnapshots)
+        idxEigenmodesPerSnapshot = np.where(nEigenmodesPerSnapshotList == nEigenmodesPerSnapshot)
+        normDisplacementErrorRePMRMatrix[idxEigenmodesPerSnapshot, idxSnapshot] = normDisplacementErrorRePMRList[i]
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # plot
+    axRe = axesRe[iRange]
+    im = axRe.imshow(normDisplacementErrorRePMRMatrix, cmap='RdYlGn_r', vmin=0, vmax=1)
+    xTickIndices = np.round(np.linspace(0, len(nSnapshotsList) - 1, 5)).astype(int)
+    yTickIndices = np.round(np.linspace(0, len(nEigenmodesPerSnapshotList) - 1, 5)).astype(int)
+    axRe.set_xticks(xTickIndices)
+    axRe.set_xticklabels(nSnapshotsList[xTickIndices])
+    axRe.set_yticks(yTickIndices)
+    axRe.set_yticklabels(nEigenmodesPerSnapshotList[yTickIndices])
+    axRe.invert_yaxis()
+    if iRange == len(nGlobalModesEvaluationRangeList) - 1:
+        axRe.set_xlabel(r'number $n_\mathrm{snap}$ of snapshots')
+    axRe.set_ylabel(r'number $r_\mathrm{snap}$ of' + '\neigenmodes per snapshot')
+    legendHandles = []
+    # rectangles to show nLowest combos
+    nLowest = 15
+    flatIdx = np.argsort(normDisplacementErrorRePMRMatrix, axis=None)[:nLowest]
+    rows, cols = np.unravel_index(flatIdx, normDisplacementErrorRePMRMatrix.shape)
+    for r, c in zip(rows, cols):
+        axRe.add_patch(mpatches.Rectangle((c - 0.5, r - 0.5), 1, 1, linewidth=1.5, edgecolor='black', facecolor='none', zorder=5))
+    legendHandles += [mpatches.Rectangle((0, 0), 1, 1, linewidth=1.5, edgecolor='black', facecolor='none', label=str(nLowest) + ' lowest errors'),]
+    # contour
+    kLowest = nSnapshotsList[cols] * nEigenmodesPerSnapshotList[rows]
+    contourLevel = int(np.round(np.median(kLowest)))
+    xi = np.linspace(0, len(nSnapshotsList) - 1, 500)
+    yi = np.linspace(0, len(nEigenmodesPerSnapshotList) - 1, 500)
+    XI, YI = np.meshgrid(xi, yi)
+    snapVals = np.interp(xi, np.arange(len(nSnapshotsList)), nSnapshotsList)
+    eigenVals = np.interp(yi, np.arange(len(nEigenmodesPerSnapshotList)), nEigenmodesPerSnapshotList)
+    SNAP, EIGEN = np.meshgrid(snapVals, eigenVals)
+    cs = axRe.contour(XI, YI, SNAP * EIGEN, levels=[contourLevel], colors='black', linewidths=2)
+    legendHandles += [Line2D([0], [0], color='black', linewidth=2, label=r'$n_\mathrm{snap} \, r_\mathrm{snap} = \bar{k} = ' + str(contourLevel) + '$')]
+    axRe.legend(handles=legendHandles, loc='upper right')
+    
+    #++++++++++++++++++++++++++++++++++++++++++++++++++
+    # get best combination for maximum budget of 20
+    if nGlobalModesEvaluationRange == [16, 20]:
+        bestComboIndices = np.unravel_index(np.nanargmin(normDisplacementErrorRePMRMatrix), normDisplacementErrorRePMRMatrix.shape)
+        nSnapshotsBest = nSnapshotsList[bestComboIndices[1]]
+        nEigenmodesPerSnapshotBest = nEigenmodesPerSnapshotList[bestComboIndices[0]]
+        print('Best combo for max. budget of 20: nSapshots = ' + str(nSnapshotsBest) + '; nEigenmodesPerSnapshot = ' + str(nEigenmodesPerSnapshotBest))
+    elif nGlobalModesEvaluationRange == [21, 25]:
+        bestComboIndices25 = np.unravel_index(np.nanargmin(normDisplacementErrorRePMRMatrix), normDisplacementErrorRePMRMatrix.shape)
+        nSnapshotsBest25 = nSnapshotsList[bestComboIndices25[1]]
+        nEigenmodesPerSnapshotBest25 = nEigenmodesPerSnapshotList[bestComboIndices25[0]]
+        print('Best combo for max. budget of 25: nSapshots = ' + str(nSnapshotsBest25) + '; nEigenmodesPerSnapshot = ' + str(nEigenmodesPerSnapshotBest25))
+    order = np.argsort(normDisplacementErrorRePMRMatrix, axis=None)[:5]
+    for rank, idx in enumerate(order, 1):
+        r, c = np.unravel_index(idx, normDisplacementErrorRePMRMatrix.shape)
+        print('Budget', nGlobalModesEvaluationRange[1], 'rank', rank, ': (', nSnapshotsList[c], ',', nEigenmodesPerSnapshotList[r], ') err =', normDisplacementErrorRePMRMatrix[r, c])
+        
+#++++++++++++++++++++++++++++++++++++++++++++++++++
+# shared colorbar and saving
+figRe.colorbar(im, ax=axesRe, shrink=0.6, label='norm. RMS error transv.\nbeam displacement')
 SaveFig(figRe, figPath, 'E_reductionError', closeFig=False, saveFig=saveFigures)
 
-#++++++++++++++++++++++++++++++++++++++++++++++++++
-# get best combination for treated problem
-bestComboIndices = np.unravel_index(np.nanargmin(normDisplacementErrorRePMRMatrix), normDisplacementErrorRePMRMatrix.shape)
-nSnapshotsBest = nSnapshotsList[bestComboIndices[1]]
-nEigenmodesPerSnapshotBest = nEigenmodesPerSnapshotList[bestComboIndices[0]]
-print('Best combo: nSapshots = ' + str(nSnapshotsBest) + '; nEigenmodesPerSnapshot = ' + str(nEigenmodesPerSnapshotBest))
 
 #%% compute quantities for specific selected combos
 PrintHeadlineToConsole(text='Selected Combos Experiment: "Sc"')
@@ -559,7 +605,7 @@ if not onlyLoadResults:
                                                    'nGlobalModesToInvestigatePerPairList': nGlobalModesToInvestigatePerPairList})
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
-# retreive results and compute inetersting quantities
+# retreive results and compute interesting quantities
 resultsDictSc = GetResultsDictFromPKLFile(resultsFileName, 'Sc')
 pairsToInvestigateList = resultsDictSc['pairsToInvestigateList']
 nGlobalModesToInvestigatePerPairList = resultsDictSc['nGlobalModesToInvestigatePerPairList']
@@ -728,7 +774,7 @@ if not onlyLoadResults:
     AppendResultsToPKLFile(resultsFileName, 'HNum', {'time':time, 'nTimeSteps':nTimeSteps}) # same for all
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++
-# retreive results and compute inetersting quantities
+# retreive results and compute interesting quantities
 resultsDictHNum = GetResultsDictFromPKLFile(resultsFileName, 'HNum')
 outputDictHNumANCFPerTestCaseList = resultsDictHNum['outputDictHNumANCFPerTestCaseList']
 qHNumNRPerTestCaseList = resultsDictHNum['qHNumNRPerTestCaseList']
@@ -884,7 +930,7 @@ if not onlyLoadResults:
                                                    'computationTimePMRPerTestCaseList':computationTimePMRPerTestCaseList})
     
 #++++++++++++++++++++++++++++++++++++++++++++++++++
-# retreive results and compute inetersting quantities
+# retreive results and compute interesting quantities
 resultsDictCs = GetResultsDictFromPKLFile(resultsFileName, 'Cs')
 computationTimeANCFPerTestCaseList = resultsDictCs['computationTimeANCFPerTestCaseList']
 computationTimeNRPerTestCaseList = resultsDictCs['computationTimeNRPerTestCaseList']

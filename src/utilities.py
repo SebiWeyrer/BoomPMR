@@ -8,6 +8,7 @@
 
 import pickle
 import time as tm
+import numpy as np
 import exudyn as exu
 import exudyn.graphics as graphics
 from exudyn.utilities import *
