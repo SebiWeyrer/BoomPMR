@@ -155,20 +155,6 @@ beamPMR.GlobalReduceBeamWrapper(nGlobalModes=nGlobalModes, nSnapshots=nSnapshots
                                 plot=True, figSize=[5, 7], verbose=True)
 globalReductionBasis = beamPMR.reductionBasis
 
-#%% plot global reduction basis
-nGlobalModesToPlot = 3
-coordinateToPlot = 1
-colors = ['#22CC22', '#2E86A0','#FF5555']
-figGlobalBasis, axGlobalBasis = plt.subplots(1, 1, figsize=[textWidth, 2])
-for i in range(nGlobalModesToPlot):
-    axGlobalBasis.plot(np.arange(1, beamPMR.nNodes+1), globalReductionBasis[1::beamPMR.nDOFsPerNode, i], color=colors[i], label='global mode ' + str(i+1))
-axGlobalBasis.legend()
-axGlobalBasis.set_xticks(range(1, 52, 10))
-axGlobalBasis.grid()
-axGlobalBasis.set_ylabel('transv. displacement\n component')
-axGlobalBasis.set_xlabel('node number')
-SaveFig(figGlobalBasis, figPath, 'E_globalModes', closeFig=False, saveFig=False)
-
 #%% set up simulations for ANCF beam, non reduced, (specifically rediced), and globally reduced beam
 SC = exu.SystemContainer()
 mbs = SC.AddSystem()
@@ -362,14 +348,14 @@ axErrorTipDisplacementOverTime.grid()
 plt.tight_layout()
 
 #%% compute one scalar error value
-NRMSENR = NRMSE(qNR[:, -2], outputDictANCF['OutputVariableType.Displacement'][:, -2])
-NRMSEPMR = NRMSE(qPMR[:, -2], outputDictANCF['OutputVariableType.Displacement'][:, -2])
-print('Non-reduced NRMS tip-displacement error against ANCF:\t\t', str(round(NRMSENR*100, 2)) + '%.')
-print('Globally reduced NRMS tip-displacement error against ANCF:\t', str(round(NRMSEPMR*100, 2)) + '%.')
-NRMSEVectorAgainstANCF = NRMSE(qNR[:, 1::beamNR.nDOFsPerNode], outputDictANCF['OutputVariableType.Displacement'][:, 1::3])
-NRMSEVectorAgainstNR = NRMSE(qPMR[:, 1::beamPMR.nDOFsPerNode], qNR[:, 1::beamNR.nDOFsPerNode])
-print('Non-reduced NRMS beam-displacement error against ANCF:\t\t', str(round(NRMSEVectorAgainstANCF*100, 2)) + '%.')
-print('Globally reduced NRMS beam-displacement error against NR:\t', str(round(NRMSEVectorAgainstNR*100, 2)) + '%.')
+NRAgainstANCFTip = NRMSE(qNR[:, -2], outputDictANCF['OutputVariableType.Displacement'][:, -2])
+NRAgainstANCFBeam = NRMSE(qNR[:, 1::beamNR.nDOFsPerNode], outputDictANCF['OutputVariableType.Displacement'][:, 1::3])
+print('Non-reduced NRMS tip-displacement error against ANCF:\t\t', str(round(NRAgainstANCFTip*100, 2)) + '%.')
+print('Non-reduced NRMS beam-displacement error against ANCF:\t\t', str(round(NRAgainstANCFBeam*100, 2)) + '%.')
+PMRAgainstNRTip = NRMSE(qPMR[:, -2], qNR[:, -2])
+PMRAgainstNRBeam = NRMSE(qPMR[:, 1::beamPMR.nDOFsPerNode], qNR[:, 1::beamNR.nDOFsPerNode])
+print('Globally reduced NRMS tip-displacement error against NR:\t', str(round(PMRAgainstNRTip*100, 2)) + '%.')
+print('Globally reduced NRMS beam-displacement error against NR:\t', str(round(PMRAgainstNRBeam*100, 2)) + '%.')
 
 #%% plot the energies over time
 # compute the energies

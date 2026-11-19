@@ -978,3 +978,31 @@ axCs.set_xticks(x+width/2)
 axCs.set_xticklabels(labels)
 axCs.set_ylabel('computation time in s')
 SaveFig(figCs, figPath, 'E_computationSpeed', closeFig=False, saveFig=saveFigures)
+
+#%% plot global modes
+PrintHeadlineToConsole(text='Plot global modes for best combination')
+SC = exu.SystemContainer()
+mbs = SC.AddSystem() # always create new mbs (or mbs.Reset())
+nGround = mbs.AddNode(NodePointGround())
+mCoordsGround = mbs.AddMarker(MarkerNodeCoordinates(nodeNumber=nGround, visualization=VMarkerNodeCoordinates(show=False)))
+beamGMPMR = EulerBernulliBeam(beamTemplate=beamTemplateRubber,
+                              slidingJointFunction=SlidingJointFunctionEvolved,
+                              loadTipFunction=LoadTipFunctionEvolved)
+beamGMPMR.GlobalReduceBeamWrapper(nGlobalModes=nGlobalModes, nSnapshots=nSnapshotsBest, nEigenmodesPerSnapshot=nEigenmodesPerSnapshotBest)
+
+#++++++++++++++++++++++++++++++++++++++++++++++++++
+# plot
+nGlobalModesToPlot = 3
+componentIndex = 1
+colorsGMList = ['#22CC22', '#2E86A0','#FF5555'] # define the colors for the global modes
+figGM, axGM = plt.subplots(1, 1, figsize=[textWidth, 2])
+for i in range(nGlobalModesToPlot):
+    axGM.plot(np.arange(1, beamGMPMR.nNodes+1),
+              beamGMPMR.reductionBasis[componentIndex::beamGMPMR.nDOFsPerNode, i], color=colorsGMList[i], 
+              label='global mode ' + str(i+1))
+axGM.legend()
+axGM.set_xticks(range(1, beamGMPMR.nNodes, 10))
+axGM.grid()
+axGM.set_ylabel('transv. displacement\n component')
+axGM.set_xlabel('node number')
+SaveFig(figGM, figPath, 'E_globalModes', closeFig=False, saveFig=False)
